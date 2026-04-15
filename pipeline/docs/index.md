@@ -22,37 +22,49 @@ hide:
 ## Pipeline schematic
 
 ```mermaid
+%%{init: {'theme':'base','themeVariables':{
+    'fontFamily':'Arial, sans-serif',
+    'fontSize':'14px',
+    'primaryColor':'#FFFFFF',
+    'primaryTextColor':'#213c4e',
+    'primaryBorderColor':'#213c4e',
+    'lineColor':'#6b7a85',
+    'clusterBkg':'#F5F7F9',
+    'clusterBorder':'#213c4e'
+}}}%%
 flowchart TD
-    classDef input fill:#F5F7F9,stroke:#213c4e,stroke-width:2px,color:#213c4e
-    classDef step fill:#213c4e,stroke:#162938,stroke-width:2px,color:#FFFFFF
-    classDef output fill:#c2410c,stroke:#9a3412,stroke-width:2px,color:#FFFFFF
-    classDef db fill:#345372,stroke:#213c4e,stroke-width:2px,color:#FFFFFF
+    classDef input  fill:#E8F1F5,stroke:#213c4e,stroke-width:2px,color:#213c4e,font-weight:600
+    classDef step   fill:#FFFFFF,stroke:#213c4e,stroke-width:2.5px,color:#213c4e,font-weight:600
+    classDef output fill:#c2410c,stroke:#7c2d0b,stroke-width:2.5px,color:#FFFFFF,font-weight:700
+    classDef db     fill:#213c4e,stroke:#0d1a24,stroke-width:2.5px,color:#FFFFFF,font-weight:700
 
-    subgraph INPUTS["RAW INPUTS (read-only)"]
-        A1["EPA AQS Data Mart<br/>29 sites · 2015–2025"]
-        A2["TCEQ TAMIS<br/>13 sites · 2016–2025"]
-        A3["OpenWeather API<br/>15 stations · 2015–2025"]
-        A4["Extra TCEQ Sites.xlsx<br/>site coordinates"]
+    subgraph INPUTS["&nbsp;RAW INPUTS (read-only)&nbsp;"]
+        direction LR
+        A1["<b>EPA AQS Data Mart</b><br/>29 sites · 2015–2025"]
+        A2["<b>TCEQ TAMIS</b><br/>14 sites · 2016–2025"]
+        A3["<b>OpenWeather API</b><br/>15 stations · 2015–2025"]
+        A4["<b>Extra TCEQ Sites.xlsx</b><br/>site coordinates"]
     end
 
-    subgraph PIPELINE["pipeline/run_pipeline.py (~20 min)"]
+    subgraph PIPELINE["&nbsp;pipeline/run_pipeline.py · ~20 min&nbsp;"]
         direction TB
-        S0["step_00 · validate raw"]
-        S1["step_01 · pollutant parquet<br/>dedup · unit normalize · filters"]
-        S2["step_02 · weather parquet"]
-        S3["step_03 · NAAQS design values<br/>40 CFR Part 50"]
-        S4["step_04 · daily + monthly<br/>75% completeness rule"]
-        S5["step_05 · Haversine AQ↔WX"]
-        S6["step_06 · CSV + RDS export"]
-        S7["step_07 · PostgreSQL load"]
+        S0["<b>step_00</b> · validate raw"]
+        S1["<b>step_01</b> · pollutant parquet<br/>dedup · unit normalize · filter"]
+        S2["<b>step_02</b> · weather parquet"]
+        S3["<b>step_03</b> · NAAQS design values<br/>40 CFR Part 50"]
+        S4["<b>step_04</b> · daily + monthly<br/>75% completeness rule"]
+        S5["<b>step_05</b> · Haversine AQ ↔ WX"]
+        S6["<b>step_06</b> · CSV + RDS export"]
+        S7["<b>step_07</b> · PostgreSQL load"]
 
         S0 --> S1 --> S2 --> S3 --> S4 --> S5 --> S6 --> S7
     end
 
-    subgraph OUTPUTS["ANALYSIS-READY OUTPUTS"]
-        O1["data/parquet/<br/>fast local analytics<br/>~7.7M pollutant rows"]
-        O2["data/csv/<br/>flat exports<br/>R + Colab users"]
-        O3["PostgreSQL (Neon)<br/>aq schema · 5 tables<br/>SQL + BI access"]
+    subgraph OUTPUTS["&nbsp;ANALYSIS-READY OUTPUTS&nbsp;"]
+        direction LR
+        O1["<b>data/parquet/</b><br/>fast local analytics<br/>~7.7M rows"]
+        O2["<b>data/csv/</b><br/>flat exports<br/>R + Colab users"]
+        O3["<b>PostgreSQL (Neon)</b><br/>aq schema · 5 tables<br/>SQL + BI access"]
     end
 
     A1 --> S0
