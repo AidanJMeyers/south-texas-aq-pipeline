@@ -16,12 +16,12 @@
 site_name: "South Texas Air Quality Pipeline"
 site_description: "Reproducible data pipeline for ambient air quality monitoring in 13 South Texas counties (2015–2025). Melaram Lab, TAMU-CC."
 site_author: "Melaram Lab, Texas A&M University–Corpus Christi"
-site_url: "https://melaram-lab.github.io/south-texas-aq-pipeline/"
+site_url: "https://aidanjmeyers.github.io/south-texas-aq-pipeline/"
 
 # Repo (adjust once you create the GitHub repo — these two lines enable the
 # "Edit on GitHub" button on every page)
-repo_name: "melaram-lab/south-texas-aq-pipeline"
-repo_url: "https://github.com/melaram-lab/south-texas-aq-pipeline"
+repo_name: "AidanJMeyers/south-texas-aq-pipeline"
+repo_url: "https://github.com/AidanJMeyers/south-texas-aq-pipeline"
 edit_uri: "edit/main/pipeline/docs/"
 
 # The markdown lives under pipeline/docs/ — point MkDocs at it
@@ -143,7 +143,7 @@ extra_javascript:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/melaram-lab
+      link: https://github.com/AidanJMeyers
     - icon: fontawesome/solid/university
       link: https://www.tamucc.edu/
   generator: false  # hide "Made with Material for MkDocs"

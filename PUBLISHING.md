@@ -1,8 +1,7 @@
 # Publishing the Documentation Site
 
 Short guide for getting `pipeline/docs/` published as a browsable,
-searchable website at `https://melaram-lab.github.io/south-texas-aq-pipeline/`
-(or wherever you host it).
+searchable website at `https://aidanjmeyers.github.io/south-texas-aq-pipeline/`.
 
 ## What's already in place
 
@@ -40,37 +39,18 @@ On https://github.com/new, create a new repository. Suggested:
 - **Do NOT initialize** with a README, license, or gitignore — the local
   repo already has those.
 
-### Step 2 — Update the repo references in config files
-
-Three files currently hardcode the placeholder `melaram-lab/south-texas-aq-pipeline`.
-Replace that string with your actual `<owner>/<repo>` pair if different:
-
-```powershell
-# Replace OWNER and REPO_NAME with your actual values
-$owner = "your-github-username"
-$repo  = "your-repo-name"
-
-# mkdocs.yml
-(Get-Content mkdocs.yml) -replace 'melaram-lab/south-texas-aq-pipeline', "$owner/$repo" |
-  Set-Content mkdocs.yml
-
-# pipeline/docs/index.md (if it references the repo)
-(Get-Content pipeline/docs/index.md) -replace 'melaram-lab/south-texas-aq-pipeline', "$owner/$repo" |
-  Set-Content pipeline/docs/index.md
-```
-
-### Step 3 — Push to GitHub
+### Step 2 — Push to GitHub
 
 ```powershell
 cd "C:\Users\aidan\OneDrive\Desktop\AirQuality South TX"
-git remote add origin "https://github.com/$owner/$repo.git"
+git remote add origin https://github.com/AidanJMeyers/south-texas-aq-pipeline.git
 git branch -M main
 git push -u origin main
 ```
 
-### Step 4 — Enable GitHub Pages
+### Step 3 — Enable GitHub Pages
 
-1. Go to the repository on GitHub
+1. Go to https://github.com/AidanJMeyers/south-texas-aq-pipeline
 2. Click **Settings** (top right)
 3. In the left sidebar, click **Pages**
 4. Under **Source**, select **GitHub Actions** (NOT "Deploy from a branch")
@@ -81,13 +61,11 @@ Watch progress under the **Actions** tab. The first build takes ~2–3
 minutes (it installs Python, pip-installs the docs deps, then builds
 and deploys).
 
-### Step 5 — Visit your site
+### Step 4 — Visit your site
 
 Once the workflow finishes successfully, your site will be live at:
 
-- **Public repo:** `https://<owner>.github.io/<repo>/`
-- **Private repo:** `https://<owner>.github.io/<repo>/` (same URL; viewer
-  must be signed in to GitHub and have repo access)
+**https://aidanjmeyers.github.io/south-texas-aq-pipeline/**
 
 The first load may take a few seconds as GitHub Pages propagates.
 

@@ -9,8 +9,8 @@ authors:
   - family-names: "Wolf"
     given-names: "Aidan"
     affiliation: "Melaram Lab, Texas A&M University–Corpus Christi"
-repository-code: "https://github.com/melaram-lab/south-texas-aq-pipeline"
-url: "https://github.com/melaram-lab/south-texas-aq-pipeline"
+repository-code: "https://github.com/AidanJMeyers/south-texas-aq-pipeline"
+url: "https://github.com/AidanJMeyers/south-texas-aq-pipeline"
 abstract: >
   A reproducible, config-driven data pipeline assembling, validating,
   normalizing, and analyzing ambient air quality data for 13 South Texas
