@@ -1,13 +1,16 @@
 # South Texas Air Quality Data Pipeline
 
+> **Melaram Lab · Texas A&M University–Corpus Christi**
+
 A reproducible, config-driven data pipeline assembling, validating,
 normalizing, and analyzing ambient air quality data for 13 South Texas
 counties over the period 2015–2025.
 
-- **Lab:** Melaram Lab, Texas A&M University–Corpus Christi
+- **Lab:** [Melaram Lab](https://www.melaramlab.com), Texas A&M University–Corpus Christi
 - **Lead:** Aidan Wolf
-- **Version:** 0.3.0 (April 2026)
+- **Version:** 0.3.4 (April 2026)
 - **License:** [MIT](./LICENSE)
+- **Docs site:** https://aidanjmeyers.github.io/south-texas-aq-pipeline/
 
 ## What this repository contains
 
@@ -42,13 +45,27 @@ LICENSE                  ← MIT
 
 ## Quick start
 
-```bash
+> :warning: **You need the raw data first.** The git repository ships with
+> pipeline code only — raw EPA/TCEQ/OpenWeather files (~2 GB total) live
+> in a separate OneDrive share. See [PUBLISHING.md](./PUBLISHING.md) or the
+> [downloads section on the docs site](https://aidanjmeyers.github.io/south-texas-aq-pipeline/#download-the-pipeline-inputs).
+
+```powershell
+# 1. Clone
+git clone https://github.com/AidanJMeyers/south-texas-aq-pipeline.git
+cd south-texas-aq-pipeline
+
+# 2. Download + unzip the raw data bundle into the repo root
+#    (link in the docs site — contact BREATHE-CC@tamucc.edu for access)
+#    After extraction, !Final Raw Data/ and 01_Data/ should sit next to pipeline/
+
+# 3. Install and run
 pip install -r requirements.txt
 python pipeline/run_pipeline.py
 ```
 
-End-to-end runtime: ~15 minutes. Outputs land under `data/` (parquet + CSV
-+ optional Postgres load).
+End-to-end runtime: **~20 minutes**. Outputs land under `data/` (parquet
++ CSV + optional Postgres load).
 
 ## Where to read next
 

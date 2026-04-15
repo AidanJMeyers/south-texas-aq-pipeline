@@ -1,0 +1,147 @@
+/* =============================================================================
+   Melaram Lab brand palette for the South Texas AQ Pipeline docs site.
+   Overrides Material for MkDocs' default theme variables.
+   -----------------------------------------------------------------------------
+   Primary: #213c4e (dark navy) — headers, links, primary accents
+   White:   #FFFFFF
+   Light:   #F5F7F9 (subtle backgrounds, alt table rows)
+   Text:    #333333
+   ============================================================================= */
+
+:root {
+  /* Primary brand color */
+  --md-primary-fg-color:           #213c4e;
+  --md-primary-fg-color--light:    #345372;
+  --md-primary-fg-color--dark:     #162938;
+
+  /* Accent (link hover, action buttons) — use a warmer contrast */
+  --md-accent-fg-color:            #c2410c;
+  --md-accent-fg-color--transparent: rgba(194, 65, 12, 0.1);
+
+  /* Body typography */
+  --md-default-fg-color:           #333333;
+  --md-default-fg-color--light:    #555555;
+  --md-default-bg-color:           #FFFFFF;
+
+  /* Code blocks */
+  --md-code-bg-color:              #F5F7F9;
+  --md-code-fg-color:              #213c4e;
+}
+
+/* Dark mode overrides so the navy still reads well */
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color:           #345372;
+  --md-primary-fg-color--light:    #4d6b8c;
+  --md-primary-fg-color--dark:     #162938;
+  --md-accent-fg-color:            #f97316;
+}
+
+/* =============================================================================
+   Tables — Melaram/BREATHE-CC style
+   ============================================================================= */
+.md-typeset table:not([class]) {
+  border: 1px solid #CCCCCC;
+  font-size: 0.82em;
+}
+.md-typeset table:not([class]) th {
+  background-color: #213c4e;
+  color: #FFFFFF;
+  font-weight: 600;
+  border-bottom: 2px solid #162938;
+}
+.md-typeset table:not([class]) tr:nth-child(even) {
+  background-color: #F5F7F9;
+}
+
+/* =============================================================================
+   Header / branding tweaks
+   ============================================================================= */
+.md-header {
+  border-bottom: 2px solid #c2410c;
+}
+.md-tabs {
+  background-color: #162938;
+}
+.md-footer {
+  background-color: #162938;
+}
+.md-footer-meta {
+  background-color: #0d1a24;
+}
+
+/* =============================================================================
+   Navigation cards on the landing page
+   ============================================================================= */
+.md-typeset .grid.cards > ul > li {
+  border: 1px solid #CCCCCC;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.md-typeset .grid.cards > ul > li:hover {
+  border-color: #213c4e;
+  box-shadow: 0 4px 12px rgba(33, 60, 78, 0.15);
+}
+
+/* =============================================================================
+   Admonition (note-box) accent colors
+   ============================================================================= */
+.md-typeset .admonition.info,
+.md-typeset details.info {
+  border-color: #213c4e;
+}
+.md-typeset .info > .admonition-title,
+.md-typeset .info > summary {
+  background-color: rgba(33, 60, 78, 0.1);
+}
+.md-typeset .info > .admonition-title::before,
+.md-typeset .info > summary::before {
+  background-color: #213c4e;
+}
+
+/* =============================================================================
+   Brand badge on the home page
+   ============================================================================= */
+.brand-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  background: #213c4e;
+  color: white;
+  border-radius: 4px;
+  font-size: 0.85em;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.brand-badge-accent {
+  background: #c2410c;
+}
+
+/* =============================================================================
+   Download call-to-action button
+   ============================================================================= */
+.md-typeset .download-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  background: #213c4e;
+  color: white !important;
+  border-radius: 6px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background 0.2s;
+  margin: 8px 0;
+}
+.md-typeset .download-cta:hover {
+  background: #c2410c;
+  color: white !important;
+}
+
+/* =============================================================================
+   Code copy button
+   ============================================================================= */
+.md-clipboard {
+  color: #213c4e;
+}
+.md-clipboard:hover {
+  color: #c2410c;
+}

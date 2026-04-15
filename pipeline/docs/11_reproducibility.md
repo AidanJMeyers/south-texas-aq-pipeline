@@ -16,17 +16,45 @@ Optional:
 - **R ≥ 4.0** (for step 06 RDS export; skipped if absent)
 - **Postgres access** (for step 07; skipped if `AQ_POSTGRES_URL` unset)
 
-## 1. Clone / obtain the project
+## 1. Clone the code repository
 
-The pipeline lives inside the project directory at
-`C:\Users\aidan\OneDrive\Desktop\AirQuality South TX` on the primary
-development machine. To reproduce elsewhere, copy the following:
+```bash
+git clone https://github.com/AidanJMeyers/south-texas-aq-pipeline.git
+cd south-texas-aq-pipeline
+```
 
-- `pipeline/` (entire directory)
-- `requirements.txt`
-- `PIPELINE_PROMPT.md`
-- **Raw inputs:** `!Final Raw Data/`, `01_Data/`, `AM_R_Notebooks/`,
-  `06_HTML_Reports/10_Site_Inventory_Report.html`
+This clones the pipeline code, configs, and documentation (~3 MB).
+
+## 1b. Download the raw data bundle (~2 GB)
+
+The raw EPA, TCEQ, and OpenWeather files are **not** committed to git —
+they total ~2 GB and are treated as immutable inputs. They live in a
+separate OneDrive share for Melaram Lab members:
+
+**Download:** See the [downloads section on the docs site](https://aidanjmeyers.github.io/south-texas-aq-pipeline/#download-the-pipeline-inputs)
+for the current OneDrive URL. External collaborators can request access by
+emailing [BREATHE-CC@tamucc.edu](mailto:BREATHE-CC@tamucc.edu).
+
+**Install into the repo:**
+
+```powershell
+# Download south-texas-aq-inputs.zip from OneDrive into the repo root
+Expand-Archive south-texas-aq-inputs.zip -DestinationPath .
+```
+
+After extraction, the repo tree should look like:
+
+```
+south-texas-aq-pipeline/
+├── !Final Raw Data/          (from OneDrive)
+├── 01_Data/                  (from OneDrive)
+├── pipeline/                 (from git)
+├── requirements.txt          (from git)
+├── README.md                 (from git)
+└── ...
+```
+
+The pipeline's ROOT auto-detector will find this layout automatically.
 
 ## 2. Install Python dependencies
 

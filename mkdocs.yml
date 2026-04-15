@@ -36,11 +36,13 @@ site_dir: "site"
 theme:
   name: material
   language: en
+  # Melaram Lab branding — primary navy #213c4e applied via extra_css
+  # (Material palette uses name-based colors; navy is `custom` via CSS vars)
   palette:
     # Light mode
     - media: "(prefers-color-scheme: light)"
       scheme: default
-      primary: teal
+      primary: custom
       accent: deep orange
       toggle:
         icon: material/brightness-7
@@ -48,14 +50,18 @@ theme:
     # Dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
-      primary: teal
+      primary: custom
       accent: deep orange
       toggle:
         icon: material/brightness-4
         name: Switch to light mode
   font:
-    text: Inter
+    text: Arial
     code: JetBrains Mono
+  # Logo / favicon — add a hosted image URL or docs/assets/logo.png when
+  # the Melaram Lab horizontal partnership logo is uploaded to the repo.
+  # logo: assets/melaram-lab-logo.png
+  # favicon: assets/favicon.png
   features:
     - navigation.tabs           # top-level tabs
     - navigation.tabs.sticky
@@ -137,6 +143,9 @@ plugins:
 # -----------------------------------------------------------------------------
 # Extra CSS / JS for math rendering
 # -----------------------------------------------------------------------------
+extra_css:
+  - stylesheets/extra.css
+
 extra_javascript:
   - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
 
@@ -144,8 +153,12 @@ extra:
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/AidanJMeyers
+    - icon: fontawesome/solid/flask
+      link: https://www.melaramlab.com
+      name: Melaram Lab
     - icon: fontawesome/solid/university
       link: https://www.tamucc.edu/
+      name: Texas A&M University–Corpus Christi
   generator: false  # hide "Made with Material for MkDocs"
 
 # -----------------------------------------------------------------------------
