@@ -130,66 +130,93 @@ leaving them unpaired to any weather station.
 sheet, which covers all 12. The union of the two sources maps 41/41
 active sites to coordinates. No county-name fallback needed.
 
-### 9. Site count 41 vs 43 vs 47
+### 9. Site count 41 vs 47 (inventory reconciliation)
 
 **Severity:** Informational (spec vs. reality mismatch)
-**Status:** ✅ Documented in v0.3.0 (site_lookup + config)
+**Status:** ✅ Documented in v0.3.1 (site_lookup + config)
 
-The project specification (`PIPELINE_PROMPT.md §5`) claims 43 sites with
-active data. The inventory HTML report lists 47. The pipeline finds 41.
-Reconciliation:
+The inventory HTML report (`06_HTML_Reports/10_Site_Inventory_Report.html`)
+lists 47 sites. The pipeline finds 41 with measurement data.
 
-| Count | Breakdown |
-|---|---|
-| **41** | Sites with measurement rows in the processed CSVs (actual pipeline state) |
-| **43** | Target = 41 + 2 pending VOC downloads (Corpus Christi Palm 483550083, Williams Park 483551024) |
-| **47** | Full inventory = 43 + 3 CPS fence-line reference-only sites + 1 dual-ID physical site (Calaveras Lake 480291609) |
+Current reconciliation (47 total):
 
-**Fix:** `site_registry.csv` now lists all 47 with a `data_status` column:
-- `active` (41)
-- `reference` (3) — CPS fence-line, no data yet
-- `pending` (2) — VOC sites awaiting TCEQ TAMIS download
-- `active+dual_id` (1) — Calaveras Lake EPA side
+| Count | data_status | Sites |
+|---:|---|---|
+| **41** | `active` | Sites with measurement rows in the processed CSVs |
+| **3** | `reference` | CPS Energy fence-line monitors (Gardner Rd, Gate 9A, Gate 58) — registered but never collected data |
+| **1** | `pending` | Corpus Christi Palm (483550083) — VOCs data needs fresh TCEQ TAMIS download |
+| **1** | `disabled` | Williams Park (483551024) — confirmed disabled in inventory report |
+| **1** | `tceq_alias` | Calaveras Lake TCEQ (480291609) — TCEQ internal alias; data is always written under EPA AQSID 480290059 |
 
-Config's `expected.active_sites` is set to 41 with `target_sites: 43` and
-`total_inventory: 47` documented alongside. Validation warns (not errors)
-if the active count drops below 36, allowing reasonable site turnover.
+**Fix:** `site_registry.csv` lists all 47 with a `data_status` column plus
+a `co_located_with` cross-reference column (currently only populated for
+the Calaveras alias pointing at 480290059).
 
-### 10. TCEQ file misnamed
+Config's `expected.active_sites` is set to 41. The earlier "target_sites:
+43" is now revised — there is **no path** to 43 unless Williams Park
+(currently disabled) is reactivated AND CC Palm VOCs data is downloaded.
 
-**Severity:** Informational
-**Status:** Documented (no fix needed)
+### 10. TCEQ file `VOCsAutoGC_CCPalmNueces.txt` is mislabeled AND mis-filled
+
+**Severity:** Medium (data acquisition gap, not a pipeline bug)
+**Status:** ⚠️ Documented; action required for full VOC coverage
 
 The file `!Final Raw Data/TCEQ Data - Missing Sites/TCEQ_VOCsAutoGC_2016-2025_CCPalmNueces.txt`
-is **not** VOCs and **not** Corpus Christi Palm. Its actual contents:
-443,297 rows of CO, SO₂, NO, NO₂, NOx, O₃, and PM₂.₅ for **6 Bexar sites**
-(CPS Pecan Valley, Elm Creek, Fair Oaks Ranch, Heritage, San Antonio Red
-Hill, Government Canyon).
+is named to describe **Corpus Christi Palm (AQSID 483550083) AutoGC VOCs data**,
+but its actual contents are **443,297 rows of CO, SO₂, NO, NO₂, NOx, O₃,
+and PM₂.₅ data for 6 Bexar County sites** (CPS Pecan Valley, Elm Creek,
+Fair Oaks Ranch, Heritage, San Antonio Red Hill, Government Canyon).
+**Zero rows for AQSID 483550083**, zero rows in Nueces County, zero VOC
+parameter codes (no 431xx, 432xx, or 452xx).
 
-**No fix needed:** The upstream reorg scripts already route the rows into
-the correct pollutant buckets by `parameter_code`, so the misleading
-filename has no downstream impact. Documented here so future maintainers
-don't chase it.
+The Bexar site data is **already correctly represented** in the pipeline
+via the `NOx_Family`, `CO`, `SO2`, `Ozone`, and `PM2.5` By_Pollutant CSVs
+(upstream reorg scripts routed it by parameter code, not by filename).
 
-### 11. VOCs file covers only 1 of 2 expected sites
+**The CC Palm VOCs data is not in the project at all.** To add it:
+1. Download AQSID 483550083 VOC data from TCEQ TAMIS as AQS RD transaction format
+2. Drop the file under `!Final Raw Data/TCEQ Data - Missing Sites/`
+3. Update upstream reorg scripts to ingest it into `VOCs_AllCounties_2016_2025.csv`
+4. Rerun `python pipeline/run_pipeline.py`
 
-**Severity:** Informational (feature gap, not a bug)
-**Status:** Documented as pending
+### 11. VOCs file covers only 1 site (not 2)
+
+**Severity:** Informational (feature gap, follow-up of issue 10)
+**Status:** Documented
 
 `VOCs_AllCounties_2016_2025.csv` contains 46,704 rows for exactly 1 site:
-483550029 (Corpus Christi Hillcrest). The project spec mentions 2 VOC
-sites. The second (and a third per inventory) require fresh downloads
-from TCEQ TAMIS:
-- 483550083 — Corpus Christi Palm
-- 483551024 — Williams Park
+483550029 (Corpus Christi Hillcrest). The project's original plan called
+for 2 VOC sites, with Corpus Christi Palm (483550083) being the second.
 
-**Path forward:** Download those sites from
-https://www17.tceq.texas.gov/tamis/, drop the RD transaction files under
-`!Final Raw Data/TCEQ Data - Missing Sites/`, update the upstream reorg
-scripts to ingest them, then rerun the pipeline. Site count will become
-43 active.
+Per issue 10, the raw file meant to contain CC Palm's data actually
+contains unrelated Bexar data. Until a fresh TCEQ TAMIS download supplies
+the real CC Palm VOCs measurements, the pipeline has only one VOC site.
 
-### 12. 2025 data is partial
+### 12. Calaveras Lake dual AQSID
+
+**Severity:** Informational
+**Status:** ✅ Documented in v0.3.1
+
+Two AQS identifiers map to the Calaveras Lake area:
+
+| AQSID | Name | Used as measurement ID? |
+|---|---|:-:|
+| 480290059 | Calaveras Lake (EPA) | ✅ Yes — all raw data uses this ID |
+| 480291609 | Calaveras Lake (TCEQ) | ❌ No — TCEQ-internal alias only |
+
+**The `TCEQ_CalaveresLake_*.txt` file**, despite the filename and the
+"TCEQ" prefix, writes every row under AQSID 480290059 — the EPA-assigned
+ID. The TCEQ-internal ID 480291609 **never appears** as an AQSID on any
+measurement row, in any raw file, from either network.
+
+**Handling:** The pipeline treats 480290059 as an active site (loaded from
+data) and 480291609 as a `tceq_alias` entry in the registry with
+`co_located_with=480290059`. Consumers should **not** attempt to deduplicate
+the pair — there is nothing to deduplicate, because only one side carries
+data. If you need to reference the TCEQ site identifier for compliance
+reporting, use 480291609; for data queries, always use 480290059.
+
+### 13. 2025 data is partial
 
 **Severity:** Informational
 **Status:** Documented
@@ -198,7 +225,7 @@ EPA data currently runs through **July 2025**; TCEQ through **November
 2025**. Any full-year 2025 analysis will be incomplete. NAAQS design
 values for 2025 should be treated as provisional.
 
-### 13. OneDrive `desktop.ini` sidecar files
+### 14. OneDrive `desktop.ini` sidecar files
 
 **Severity:** Low (crashed pyarrow dataset scans)
 **Status:** ✅ Fixed in v0.2.1
@@ -210,22 +237,6 @@ scan tried to read these as parquet files and crashed.
 **Fix:** `pipeline/utils/io.py::read_parquet_dataset` now explicitly
 globs `*.parquet` files and passes a file list to `ds.dataset()`, bypassing
 the recursive directory scan.
-
-### 14. Calaveras Lake dual AQS ID
-
-**Severity:** Informational
-**Status:** Documented
-
-One physical site is registered under two AQS IDs:
-- **480290059** (EPA side)
-- **480291609** (TCEQ side)
-
-Both IDs map to the same coordinates, same instrument data. Spatial
-analyses **must deduplicate** to avoid double-counting.
-
-**Handling:** `site_registry.csv` flags both rows with
-`dual_id_group='calaveras_lake'`. Downstream analysis should group by
-`dual_id_group` when present and pick one canonical ID.
 
 ### 15. Postgres 65k parameter limit
 

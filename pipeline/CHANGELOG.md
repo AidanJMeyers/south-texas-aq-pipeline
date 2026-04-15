@@ -2,6 +2,49 @@
 
 All notable changes to the South Texas AQ data pipeline are documented here.
 
+## [0.3.1] — 2026-04-15
+
+### Fixed
+
+- **Williams Park site status.** Reclassified `483551024` from `pending`
+  to `disabled` per the inventory report
+  (`06_HTML_Reports/10_Site_Inventory_Report.html`). It is not a pending
+  download — the station is permanently disabled.
+- **Calaveras Lake dual-ID framing corrected.** Previously the registry
+  labeled `480290059` (EPA) as `active+dual_id` and `480291609` (TCEQ)
+  as `pending`, implying a physical duplication to deduplicate. Verified
+  from the raw files that **480291609 never appears as a measurement
+  AQSID in any file** — including the `TCEQ_CalaveresLake_*.txt` file,
+  which writes every row under 480290059. The two identifiers are now
+  tracked as distinct registry entries: `480290059` as `active`, and
+  `480291609` as `tceq_alias` with `co_located_with=480290059`. No
+  deduplication is performed because there is nothing to deduplicate.
+- **`TCEQ_VOCsAutoGC_CCPalmNueces.txt` mislabel documented.** Confirmed
+  via direct inspection (all 443,297 rows, all 7 parameters, all 6 sites)
+  that the file contains **zero VOC rows and zero Nueces County rows** —
+  it is filled with CO/SO₂/NO/NO₂/NOx/O₃/PM₂.₅ data for 6 Bexar sites.
+  Corpus Christi Palm (`483550083`) VOCs data is therefore **not in the
+  project**; registry row updated with a clear note.
+
+### Added
+
+- `data_status` values expanded from 4 to 5:
+  `active`, `reference`, `pending`, `disabled`, `tceq_alias`
+- `co_located_with` column in `site_registry.csv` for cross-referencing
+  TCEQ aliases to their measurement-carrying AQSIDs
+- `notes` column in `site_registry.csv` with free-text explanation of each
+  non-active row's status
+- `TCEQ_INTERNAL_ALIASES` and `DISABLED_SITES` dicts in
+  `pipeline/utils/site_lookup.py`
+
+### Removed
+
+- `target_sites: 43` from `config.yaml:expected` — the previous "path to
+  43" rested on Williams Park being reachable, which it is not. Maximum
+  achievable active count is 42 (adding CC Palm VOCs).
+- `dual_id_group` column from `site_registry.csv` — superseded by
+  `co_located_with` + `data_status == 'tceq_alias'`.
+
 ## [0.3.0] — 2026-04-14
 
 ### Added

@@ -205,23 +205,29 @@ every pipeline run.
 | `state_code`, `county_code`, `site_number` | FIPS + site |
 | `site_name` | Human-readable name |
 | `county_name` | Title case |
-| `network` | `EPA`, `TCEQ`, `BOTH`, or empty (reference-only) |
+| `network` | `EPA`, `TCEQ`, `BOTH`, or empty (reference/alias rows) |
 | `pollutants` | `;`-separated list of pollutant groups measured |
 | `n_pollutants` | Count of pollutant groups |
-| `first_date`, `last_date` | Data coverage period (null for reference/pending sites) |
+| `first_date`, `last_date` | Data coverage period (null for non-active rows) |
 | `n_records` | Total raw observations across all pollutants |
-| `dual_id_group` | `"calaveras_lake"` for the 2 Calaveras rows, empty otherwise |
-| `data_status` | `"active"` (41), `"active+dual_id"` (1), `"reference"` (3), `"pending"` (2) |
+| `data_status` | See breakdown below |
+| `co_located_with` | Cross-reference AQSID for aliases (empty for most rows) |
+| `notes` | Free-text explanation of the row's status |
 | `lat`, `lon` | Decimal degrees (WGS84) |
 
 **Status breakdown (47 total):**
-- **41 active** — have measurement data in the pipeline; 30 EPA + 11 TCEQ
-- **1 active+dual_id** — Calaveras Lake 480290059 (EPA side of the dual)
-- **3 reference** — CPS fence-line monitors (480290623, 480290625, 480290626); registered but no measurement data in project
-- **2 pending** — Corpus Christi Palm (483550083), Williams Park (483551024); VOCs data not yet downloaded from TCEQ TAMIS
 
-Adding the 2 pending sites after a TCEQ download would bring the active count
-to **43** (matching the original spec in `PIPELINE_PROMPT.md §5`).
+| Count | Status | Meaning |
+|---:|---|---|
+| **41** | `active` | Has measurement data in the pipeline |
+| **3** | `reference` | CPS Energy fence-line monitors (Gardner Rd, Gate 9A, Gate 58) |
+| **1** | `pending` | Corpus Christi Palm (483550083) — VOCs download needed |
+| **1** | `disabled` | Williams Park (483551024) — confirmed disabled in inventory |
+| **1** | `tceq_alias` | Calaveras Lake TCEQ 480291609 — data written under EPA 480290059 |
+
+**Important:** Always filter to `data_status == 'active'` for analytical
+queries. The other four statuses describe registry entries that do **not**
+have associated measurement rows.
 
 ## Postgres tables (`aq` schema)
 

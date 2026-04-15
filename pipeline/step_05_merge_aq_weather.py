@@ -261,10 +261,6 @@ def main(cfg: PipelineConfig | None = None) -> bool:
 
     with step_timer(log, "build site registry"):
         registry = build_site_registry(cfg)
-    # Also merge in the reference lat/lon so the registry carries confirmed coords
-    registry = registry.drop(columns=[c for c in ("lat", "lon") if c in registry.columns]).merge(
-        ref_keep, on="aqsid", how="left"
-    )
     write_csv(registry, cfg.path("csv_exports") / "site_registry.csv")
     log.info(f"  site registry: {len(registry)} sites written")
 
