@@ -2,6 +2,59 @@
 
 All notable changes to the South Texas AQ data pipeline are documented here.
 
+## [0.3.3] — 2026-04-15
+
+### Changed
+
+- **Calaveras Lake Park (480291609) reclassified from `pending` to
+  `excluded`.** Confirmed by the project team that this TCEQ-operated
+  monitor measures only Total Suspended Particulate (TSP), which is
+  outside the project's pollutant scope (PM₂.₅, PM₁₀, O₃, CO, NOx, SO₂,
+  VOCs). It is a **separate physical site** from Calaveras Lake (EPA,
+  480290059), not an alias. No data will be ingested from it.
+- **Calaveras Lake (480290059) is now EPA-only.** Previously the merged
+  pollutant CSVs carried a parallel TCEQ data feed for this AQSID
+  (~478,846 rows post-dedup across NOx_Family, Ozone, PM2.5, SO2) that
+  partially mirrored the EPA feed with occasional value conflicts.
+  The v0.3.3 pipeline drops all rows matching
+  `(aqsid=480290059, data_source=TCEQ)` via a new `OUT_OF_SCOPE_FILTERS`
+  mechanism in `step_01_build_pollutant_store.py`. The EPA feed alone
+  is used for this site.
+- **`06_HTML_Reports/10_Site_Inventory_Report.html` updated** to reflect:
+  * 42 active sites (not 43)
+  * Calaveras Lake vs. Calaveras Lake Park clearly distinguished as
+    two separate physical stations
+  * Calaveras Lake Park marked as excluded (TSP-only)
+  * Summary: 42 Active + 5 Non-Scope = 47 Total
+
+### Added
+
+- `OUT_OF_SCOPE_FILTERS` constant + `_drop_out_of_scope()` function in
+  `pipeline/step_01_build_pollutant_store.py`. Each filter is an AND over
+  `{column: value}` matches; rows matching any filter are dropped after
+  dedup and logged. Extensible for future filters.
+- `EXCLUDED_SITES` dict and `excluded` data_status in
+  `pipeline/utils/site_lookup.py`.
+- `config.yaml:expected.parquet_expected` — post-filter row counts for
+  downstream validators and sanity checks (not enforced by step 00, which
+  reads raw CSV counts).
+
+### Removed
+
+- `PENDING_SITES` dict and `pending` data_status for Calaveras Lake Park
+  (no longer needs to be downloaded — deliberately excluded).
+
+### Pipeline outcome
+
+After v0.3.3 pipeline run:
+
+| Layer | Row count |
+|---|---:|
+| Raw CSVs (validated by step 00) | 9,151,245 |
+| Parquet store (step 01 output) | ~7,699,105 |
+| Daily aggregates | ~400,000 |
+| Active sites | **42** |
+
 ## [0.3.2] — 2026-04-15
 
 ### Added

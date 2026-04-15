@@ -130,6 +130,64 @@ leaving them unpaired to any weather station.
 sheet, which covers all 12. The union of the two sources maps 41/41
 active sites to coordinates. No county-name fallback needed.
 
+### 8b. Calaveras Lake TCEQ data feed is a duplicate of the EPA feed
+
+**Severity:** Medium (~478k rows would have been mis-counted without a fix)
+**Status:** ✅ Filtered in v0.3.3 (step 01 `OUT_OF_SCOPE_FILTERS`)
+
+The EPA-operated Calaveras Lake monitor (AQSID `480290059`) has a
+**parallel TCEQ data feed** in the merged pollutant CSVs. This feed
+carries rows with `(aqsid=480290059, data_source='TCEQ')` alongside the
+genuine EPA feed with `data_source='EPA'`. Investigation during v0.3.3:
+
+| Pollutant | Dedup-exact duplicates | Post-dedup TCEQ rows at 480290059 | Same-key value conflicts |
+|---|---:|---:|---:|
+| NOx_Family | 502,656 → 251,328 | **251,328** | Yes |
+| Ozone | 0 → 0 | **85,025** | N/A (dedup drops none) |
+| PM2.5 | 0 → 0 | **60,377** | N/A |
+| SO2 | 0 → 0 | **82,116** | N/A |
+| **Total** | **251,328** | **478,846** | |
+
+**Diagnosis — what the TCEQ feed is:**
+- The `TCEQ_CalaveresLake_PM2.5,SO2,NOx,O3_2016-2025.txt` raw file writes
+  every measurement row under AQSID `480290059` (the EPA-assigned ID).
+  This is TCEQ republishing EPA's monitor data through its TAMIS portal.
+- Roughly half of the NOx rows are **byte-for-byte duplicates** of the
+  EPA feed (same `sample_measurement`, same timestamp, same method).
+  Those are dropped automatically by step 01's `drop_duplicates()`.
+- The other half — and all rows in Ozone, PM2.5, SO2 — are **same-key
+  same-site same-time but different `sample_measurement`**. Likely
+  causes: rounding differences between EPA and TCEQ data loaders, timing
+  differences in when each network processed the same raw voltage,
+  or genuinely different post-processing QC rules.
+- In every case, the TCEQ feed is **secondary** — EPA is the primary
+  source for this site because EPA operates it.
+
+**Decision (v0.3.3):** Drop all rows matching
+`(aqsid='480290059', data_source='TCEQ')` in step 01 via the new
+`OUT_OF_SCOPE_FILTERS` mechanism. The 478,846 post-dedup TCEQ rows are
+removed before writing to parquet. The EPA feed (the authoritative
+source) is the only data used for this site.
+
+**Why not average the two feeds?** Averaging EPA + TCEQ values for the
+same timestamp would bias the analysis toward sites that happen to be
+double-reported (i.e., just Calaveras Lake) relative to sites that only
+appear in one network. Dropping the TCEQ feed gives us a consistent
+"one authoritative source per site" rule.
+
+**Also verified:** The separate physical TCEQ station at Calaveras Lake
+Park (AQSID `480291609`) measures only Total Suspended Particulate (TSP),
+which is outside the project's pollutant scope. It is tracked in the
+registry as `excluded`, with `data_status='excluded'` and a clarifying
+note. See the overall reconciliation in issue #9.
+
+**Precedent / extensibility:** `OUT_OF_SCOPE_FILTERS` in
+`pipeline/step_01_build_pollutant_store.py` is a list of
+`(description, match_dict)` rules. Each rule is an AND over column
+matches. Add to it if future data audits uncover other parallel feeds.
+
+---
+
 ### 9. Site count 42 vs 43 vs 47 (inventory reconciliation)
 
 **Severity:** Informational (spec vs. reality mismatch)

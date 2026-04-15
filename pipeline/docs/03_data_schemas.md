@@ -215,18 +215,20 @@ every pipeline run.
 | `notes` | Free-text explanation of the row's status |
 | `lat`, `lon` | Decimal degrees (WGS84) |
 
-**Status breakdown (47 total, as of v0.3.2):**
+**Status breakdown (47 total, as of v0.3.3):**
 
 | Count | Status | Meaning |
 |---:|---|---|
 | **42** | `active` | Has measurement data in the pipeline |
 | **3** | `reference` | CPS Energy fence-line monitors (Gardner Rd, Gate 9A, Gate 58) |
-| **1** | `pending` | Calaveras Lake Park (480291609) — TCEQ monitor, raw data not downloaded |
+| **1** | `excluded` | Calaveras Lake Park (480291609) — TCEQ monitor, TSP-only (outside project scope) |
 | **1** | `disabled` | Williams Park (483551024) — confirmed disabled in inventory |
 
-**Note on Calaveras:** `480290059` (Calaveras Lake, EPA-operated) and
-`480291609` (Calaveras Lake Park, TCEQ-operated) are **separate physical
-monitoring stations**, not aliases for the same site. Do not deduplicate.
+**Note on Calaveras:** `480290059` (Calaveras Lake, EPA-operated, active)
+and `480291609` (Calaveras Lake Park, TCEQ-operated, excluded) are
+**separate physical monitoring stations**. Calaveras Lake Park measures
+only Total Suspended Particulate (TSP), which is outside the project's
+scope (PM₂.₅, PM₁₀, O₃, CO, NOx, SO₂, VOCs). Do not deduplicate.
 
 **Important:** Always filter to `data_status == 'active'` for analytical
 queries. The other four statuses describe registry entries that do **not**

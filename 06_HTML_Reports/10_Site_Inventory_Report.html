@@ -1,0 +1,1164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitoring Site Inventory - South Texas Air Quality</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f5f7fa;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1a365d 0%, #2c5282 100%);
+            color: white;
+            padding: 40px;
+            border-radius: 8px;
+            margin-bottom: 40px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .header .subtitle {
+            font-size: 1.3em;
+            opacity: 0.95;
+            margin-bottom: 15px;
+        }
+
+        .header .metadata {
+            font-size: 0.95em;
+            opacity: 0.85;
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }
+
+        .metadata-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .metadata-label {
+            font-weight: 600;
+            font-size: 0.85em;
+            text-transform: uppercase;
+            opacity: 0.8;
+            margin-bottom: 3px;
+        }
+
+        .metadata-value {
+            font-size: 1em;
+        }
+
+        .section {
+            background: white;
+            padding: 30px;
+            margin-bottom: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .section h2 {
+            color: #1a365d;
+            font-size: 1.8em;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 3px solid #2c5282;
+        }
+
+        .section h3 {
+            color: #2c5282;
+            font-size: 1.3em;
+            margin-top: 25px;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: linear-gradient(135deg, #f5f7fa 0%, #edf2f7 100%);
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 5px solid #2c5282;
+        }
+
+        .card-label {
+            font-size: 0.85em;
+            color: #666;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+
+        .card-value {
+            font-size: 2em;
+            color: #1a365d;
+            font-weight: 700;
+        }
+
+        .card-subtitle {
+            font-size: 0.9em;
+            color: #888;
+            margin-top: 5px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 0.9em;
+        }
+
+        thead {
+            background: linear-gradient(135deg, #1a365d 0%, #2c5282 100%);
+            color: white;
+        }
+
+        th {
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.85em;
+            text-transform: uppercase;
+        }
+
+        td {
+            padding: 11px 12px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        tbody tr:hover {
+            background-color: #f9fafb;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .badge-epa {
+            background-color: #dcfce7;
+            color: #166534;
+        }
+
+        .badge-tceq {
+            background-color: #dbeafe;
+            color: #1e40af;
+        }
+
+        .badge-both {
+            background-color: #fef3c7;
+            color: #92400e;
+        }
+
+        .pollutant-tag {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.78em;
+            font-weight: 500;
+            margin: 2px;
+            background: #f1f5f9;
+            color: #475569;
+            border: 1px solid #e2e8f0;
+        }
+
+        .pollutant-tag.ozone { background: #ecfdf5; color: #065f46; border-color: #a7f3d0; }
+        .pollutant-tag.nox { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
+        .pollutant-tag.pm25 { background: #eff6ff; color: #1e40af; border-color: #bfdbfe; }
+        .pollutant-tag.pm10 { background: #f5f3ff; color: #5b21b6; border-color: #ddd6fe; }
+        .pollutant-tag.so2 { background: #fefce8; color: #854d0e; border-color: #fde68a; }
+        .pollutant-tag.co { background: #fff7ed; color: #9a3412; border-color: #fed7aa; }
+        .pollutant-tag.vocs { background: #fdf2f8; color: #9d174d; border-color: #fbcfe8; }
+        .pollutant-tag.none { background: #f3f4f6; color: #6b7280; border-color: #d1d5db; font-style: italic; }
+
+        .county-header {
+            background: #f8fafc;
+            font-weight: 700;
+            color: #1a365d;
+        }
+
+        .county-header td {
+            padding: 14px 12px;
+            border-bottom: 2px solid #2c5282;
+            font-size: 1em;
+        }
+
+        .note-box {
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-left: 4px solid #2c5282;
+            padding: 16px 20px;
+            border-radius: 6px;
+            margin: 20px 0;
+            font-size: 0.93em;
+            color: #1e40af;
+        }
+
+        .note-box strong {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 0.95em;
+        }
+
+        .discrepancy-box {
+            background: #fefce8;
+            border: 1px solid #fde68a;
+            border-left: 4px solid #ca8a04;
+            padding: 16px 20px;
+            border-radius: 6px;
+            margin: 20px 0;
+            font-size: 0.93em;
+            color: #854d0e;
+        }
+
+        .discrepancy-box strong {
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .network-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .network-box {
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+        }
+
+        .network-box h4 {
+            font-size: 1.05em;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .network-box ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        .network-box li {
+            padding: 4px 0;
+            font-size: 0.9em;
+            color: #555;
+        }
+
+        .network-box li::before {
+            content: ">";
+            color: #2c5282;
+            font-weight: 700;
+            margin-right: 8px;
+        }
+
+        .epa-box { background: #f0fdf4; border-color: #86efac; }
+        .epa-box h4 { color: #166534; }
+        .tceq-box { background: #eff6ff; border-color: #93c5fd; }
+        .tceq-box h4 { color: #1e40af; }
+
+        .bar-chart-container {
+            margin: 20px 0;
+        }
+
+        .bar-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .bar-label {
+            width: 100px;
+            font-size: 0.88em;
+            font-weight: 600;
+            color: #475569;
+            text-align: right;
+            padding-right: 12px;
+        }
+
+        .bar-track {
+            flex: 1;
+            background: #f1f5f9;
+            border-radius: 6px;
+            height: 28px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .bar-fill {
+            height: 100%;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            padding-left: 10px;
+            font-size: 0.8em;
+            font-weight: 600;
+            color: white;
+            transition: width 0.5s ease;
+        }
+
+        .bar-count {
+            width: 40px;
+            font-size: 0.88em;
+            font-weight: 700;
+            color: #1a365d;
+            text-align: center;
+            margin-left: 8px;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 30px;
+            margin-top: 30px;
+            color: #888;
+            font-size: 0.85em;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .footer a {
+            color: #2c5282;
+            text-decoration: none;
+        }
+
+        @media print {
+            body { background: white; }
+            .header { break-after: avoid; }
+            .section { break-inside: avoid; page-break-inside: avoid; }
+            table { font-size: 0.8em; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+
+    <!-- HEADER -->
+    <div class="header">
+        <h1>Monitoring Site Inventory</h1>
+        <div class="subtitle">South Texas Air Quality Analysis &mdash; Complete Site Registry</div>
+        <div class="metadata">
+            <div class="metadata-item">
+                <span class="metadata-label">Study Period</span>
+                <span class="metadata-value">January 2015 &ndash; November 2025</span>
+            </div>
+            <div class="metadata-item">
+                <span class="metadata-label">Principal Investigator</span>
+                <span class="metadata-value">Melaram Lab, TAMU-CC</span>
+            </div>
+            <div class="metadata-item">
+                <span class="metadata-label">Report Generated</span>
+                <span class="metadata-value">April 13, 2026</span>
+            </div>
+            <div class="metadata-item">
+                <span class="metadata-label">Total Records</span>
+                <span class="metadata-value">5,843,628 observations</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- SUMMARY CARDS -->
+    <div class="summary-cards">
+        <div class="card">
+            <div class="card-label">Total Unique Sites</div>
+            <div class="card-value">47</div>
+            <div class="card-subtitle">Across 13 South Texas counties</div>
+        </div>
+        <div class="card">
+            <div class="card-label">EPA AQS Sites</div>
+            <div class="card-value">29</div>
+            <div class="card-subtitle">28 EPA-only + 1 dual-network</div>
+        </div>
+        <div class="card">
+            <div class="card-label">TCEQ TAMIS Sites</div>
+            <div class="card-value">19</div>
+            <div class="card-subtitle">18 TCEQ-only + 1 dual-network</div>
+        </div>
+        <div class="card">
+            <div class="card-label">Sites with Data</div>
+            <div class="card-value">43</div>
+            <div class="card-subtitle">With pollutant records in CSVs</div>
+        </div>
+        <div class="card">
+            <div class="card-label">Reference-Only Sites</div>
+            <div class="card-value">4</div>
+            <div class="card-subtitle">In TCEQ registry, no data in CSVs</div>
+        </div>
+    </div>
+
+    <!-- COUNT RECONCILIATION -->
+    <div class="section">
+        <h2>Site Count Reconciliation</h2>
+
+        <div class="discrepancy-box">
+            <strong>Reconciling the Count: 42 active + 5 non-scope = 47 Total</strong>
+            An earlier version of this report listed <strong>43 sites with active data</strong>, but that count included Calaveras Lake Park (AQSID 480291609), which was later confirmed to measure only Total Suspended Particulate (TSP) — a pollutant outside this project's scope (PM<sub>2.5</sub>, PM<sub>10</sub>, O<sub>3</sub>, CO, NO<sub>x</sub>, SO<sub>2</sub>, VOCs). After the v0.3.2 pipeline ingestion, the correct count is <strong>42 active sites with in-scope data</strong>, plus <strong>5 sites outside active analysis</strong> (3 CPS fence-line reference-only, 1 Calaveras Lake Park TSP-only excluded, 1 Williams Park disabled). The total inventory remains <strong>47 unique monitoring sites</strong>.
+        </div>
+
+        <h3>Where the Numbers Come From</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Count</th>
+                    <th>Source</th>
+                    <th>Explanation</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>29</strong></td>
+                    <td>EPA AQS (in processed CSVs)</td>
+                    <td>Sites with <code>data_source = "EPA"</code> in the By_Pollutant files. These are the federally-operated or state-reported sites submitted through the AQS system.</td>
+                </tr>
+                <tr>
+                    <td><strong>14</strong></td>
+                    <td>TCEQ TAMIS (in processed CSVs)</td>
+                    <td>Sites with <code>data_source = "TCEQ"</code> in the By_Pollutant files. These supplemental monitoring sites were converted from pipe-delimited TAMIS format and merged into the standardized schema.</td>
+                </tr>
+                <tr>
+                    <td><strong style="color:#166534;">43</strong></td>
+                    <td>Total in processed CSVs</td>
+                    <td>Union of unique AQS IDs across all 7 pollutant files (29 + 14 = 43, with 0 overlap at the AQS ID level in the CSVs).</td>
+                </tr>
+                <tr>
+                    <td><strong>+4</strong></td>
+                    <td>TCEQ reference only</td>
+                    <td>Four additional sites listed in <code>Extra TCEQ Sites.xlsx</code> that do not appear in any processed CSV. These are industrial fence-line monitors (CPS Energy) and one potentially decommissioned Nueces County site.</td>
+                </tr>
+                <tr>
+                    <td><strong style="color:#1a365d; font-size:1.1em;">47</strong></td>
+                    <td>Grand Total (all sources)</td>
+                    <td>Complete inventory of monitoring infrastructure in the 13-county study area.</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="note-box">
+            <strong>Calaveras Lake vs. Calaveras Lake Park (two distinct sites)</strong>
+            The Calaveras Lake area has <em>two separate</em> monitoring stations:
+            <ul>
+                <li><code>480290059</code> <strong>Calaveras Lake</strong> (EPA-operated, full criteria pollutant data, <strong>active</strong> in pipeline)</li>
+                <li><code>480291609</code> <strong>Calaveras Lake Park</strong> (TCEQ-operated, at the nearby park, measures <strong>only Total Suspended Particulate (TSP)</strong>, <strong>excluded</strong> from pipeline because TSP is outside project scope)</li>
+            </ul>
+            These are distinct physical stations, not aliases &mdash; they must NEVER be deduplicated or treated as a single site.
+        </div>
+    </div>
+
+    <!-- NETWORK BREAKDOWN -->
+    <div class="section">
+        <h2>Monitoring Network Breakdown</h2>
+
+        <div class="network-summary">
+            <div class="network-box epa-box">
+                <h4><span class="badge badge-epa">EPA</span> EPA Air Quality System (AQS)</h4>
+                <p style="font-size:0.9em; color:#555; margin-bottom:10px;">Federally-operated and state-reported ambient air quality monitors submitted through EPA's Air Quality System. Hourly data downloaded via EPA AQS bulk data retrieval.</p>
+                <ul>
+                    <li><strong>29 sites</strong> in processed dataset</li>
+                    <li>Coverage period: 2015 &ndash; July 2025</li>
+                    <li>Data format: Standard EPA CSV (hourly)</li>
+                    <li>All 7 pollutant groups represented</li>
+                </ul>
+            </div>
+            <div class="network-box tceq-box">
+                <h4><span class="badge badge-tceq">TCEQ</span> TCEQ TAMIS Supplemental Network</h4>
+                <p style="font-size:0.9em; color:#555; margin-bottom:10px;">Texas Commission on Environmental Quality supplemental monitoring sites from the TAMIS database. Originally pipe-delimited TXT with 10-line metadata headers, converted to standardized EPA-format CSV.</p>
+                <ul>
+                    <li><strong>18 sites</strong> total (12 in CSVs + 6 reference-only)</li>
+                    <li>Coverage period: 2016 &ndash; November 2025</li>
+                    <li>Original format: Pipe-delimited TXT</li>
+                    <li>Monitors O3, NOx, PM2.5, PM10, SO2, CO, VOCs</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- POLLUTANT COVERAGE -->
+    <div class="section">
+        <h2>Pollutant Coverage by Number of Sites</h2>
+        <p style="margin-bottom:15px; color:#555; font-size:0.93em;">Number of monitoring sites actively recording each pollutant group across both networks. Sites may monitor multiple pollutants.</p>
+
+        <div class="bar-chart-container">
+            <div class="bar-row">
+                <span class="bar-label">Ozone</span>
+                <div class="bar-track"><div class="bar-fill" style="width:48%; background: linear-gradient(90deg, #059669, #10b981);">20 sites</div></div>
+                <span class="bar-count">20</span>
+            </div>
+            <div class="bar-row">
+                <span class="bar-label">PM2.5</span>
+                <div class="bar-track"><div class="bar-fill" style="width:48%; background: linear-gradient(90deg, #2563eb, #3b82f6);">20 sites</div></div>
+                <span class="bar-count">20</span>
+            </div>
+            <div class="bar-row">
+                <span class="bar-label">NOx Family</span>
+                <div class="bar-track"><div class="bar-fill" style="width:33%; background: linear-gradient(90deg, #dc2626, #ef4444);">14 sites</div></div>
+                <span class="bar-count">14</span>
+            </div>
+            <div class="bar-row">
+                <span class="bar-label">PM10</span>
+                <div class="bar-track"><div class="bar-fill" style="width:21%; background: linear-gradient(90deg, #7c3aed, #8b5cf6);">9 sites</div></div>
+                <span class="bar-count">9</span>
+            </div>
+            <div class="bar-row">
+                <span class="bar-label">SO2</span>
+                <div class="bar-track"><div class="bar-fill" style="width:19%; background: linear-gradient(90deg, #ca8a04, #eab308);">8 sites</div></div>
+                <span class="bar-count">8</span>
+            </div>
+            <div class="bar-row">
+                <span class="bar-label">CO</span>
+                <div class="bar-track"><div class="bar-fill" style="width:12%; background: linear-gradient(90deg, #c2410c, #ea580c);">5 sites</div></div>
+                <span class="bar-count">5</span>
+            </div>
+            <div class="bar-row">
+                <span class="bar-label">VOCs</span>
+                <div class="bar-track"><div class="bar-fill" style="width:5%; background: linear-gradient(90deg, #be185d, #ec4899); min-width:60px;">2 sites</div></div>
+                <span class="bar-count">2</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- COUNTY DISTRIBUTION -->
+    <div class="section">
+        <h2>Geographic Distribution by County</h2>
+        <p style="margin-bottom:15px; color:#555; font-size:0.93em;">Sites span 13 South Texas counties. Bexar County (San Antonio metro) has the densest monitoring infrastructure with 20 sites.</p>
+
+        <div class="bar-chart-container">
+            <div class="bar-row">
+                <span class="bar-label">Bexar</span>
+                <div class="bar-track"><div class="bar-fill" style="width:85%; background: linear-gradient(90deg, #1a365d, #2c5282);">20 sites</div></div>
+                <span class="bar-count">20</span>
+            </div>
+            <div class="bar-row">
+                <span class="bar-label">Nueces</span>
+                <div class="bar-track"><div class="bar-fill" style="width:30%; background: linear-gradient(90deg, #1a365d, #2c5282);">7 sites</div></div>
+                <span class="bar-count">7</span>
+            </div>
+            <div class="bar-row">
+                <span class="bar-label">Cameron</span>
+                <div class="bar-track"><div class="bar-fill" style="width:17%; background: linear-gradient(90deg, #1a365d, #2c5282);">4 sites</div></div>
+                <span class="bar-count">4</span>
+            </div>
+            <div class="bar-row">
+                <span class="bar-label">Comal</span>
+                <div class="bar-track"><div class="bar-fill" style="width:13%; background: linear-gradient(90deg, #1a365d, #2c5282);">3 sites</div></div>
+                <span class="bar-count">3</span>
+            </div>
+            <div class="bar-row">
+                <span class="bar-label">Webb</span>
+                <div class="bar-track"><div class="bar-fill" style="width:13%; background: linear-gradient(90deg, #1a365d, #2c5282);">3 sites</div></div>
+                <span class="bar-count">3</span>
+            </div>
+            <div class="bar-row">
+                <span class="bar-label">Guadalupe</span>
+                <div class="bar-track"><div class="bar-fill" style="width:9%; background: linear-gradient(90deg, #1a365d, #2c5282); min-width:55px;">2 sites</div></div>
+                <span class="bar-count">2</span>
+            </div>
+            <div class="bar-row">
+                <span class="bar-label">Hidalgo</span>
+                <div class="bar-track"><div class="bar-fill" style="width:9%; background: linear-gradient(90deg, #1a365d, #2c5282); min-width:55px;">2 sites</div></div>
+                <span class="bar-count">2</span>
+            </div>
+            <div class="bar-row">
+                <span class="bar-label">Atascosa</span>
+                <div class="bar-track"><div class="bar-fill" style="width:4.5%; background: linear-gradient(90deg, #1a365d, #2c5282); min-width:45px;">1</div></div>
+                <span class="bar-count">1</span>
+            </div>
+            <div class="bar-row">
+                <span class="bar-label">Karnes</span>
+                <div class="bar-track"><div class="bar-fill" style="width:4.5%; background: linear-gradient(90deg, #1a365d, #2c5282); min-width:45px;">1</div></div>
+                <span class="bar-count">1</span>
+            </div>
+            <div class="bar-row">
+                <span class="bar-label">Kleberg</span>
+                <div class="bar-track"><div class="bar-fill" style="width:4.5%; background: linear-gradient(90deg, #1a365d, #2c5282); min-width:45px;">1</div></div>
+                <span class="bar-count">1</span>
+            </div>
+            <div class="bar-row">
+                <span class="bar-label">Maverick</span>
+                <div class="bar-track"><div class="bar-fill" style="width:4.5%; background: linear-gradient(90deg, #1a365d, #2c5282); min-width:45px;">1</div></div>
+                <span class="bar-count">1</span>
+            </div>
+            <div class="bar-row">
+                <span class="bar-label">Victoria</span>
+                <div class="bar-track"><div class="bar-fill" style="width:4.5%; background: linear-gradient(90deg, #1a365d, #2c5282); min-width:45px;">1</div></div>
+                <span class="bar-count">1</span>
+            </div>
+            <div class="bar-row">
+                <span class="bar-label">Wilson</span>
+                <div class="bar-track"><div class="bar-fill" style="width:4.5%; background: linear-gradient(90deg, #1a365d, #2c5282); min-width:45px;">1</div></div>
+                <span class="bar-count">1</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- COMPLETE SITE TABLE -->
+    <div class="section">
+        <h2>Complete Site Inventory</h2>
+        <p style="margin-bottom: 5px; color:#555; font-size:0.93em;">All 47 monitoring sites organized by county. Sites with <span class="badge badge-epa" style="font-size:0.75em;">EPA</span> badges report through the federal AQS system; <span class="badge badge-tceq" style="font-size:0.75em;">TCEQ</span> badges indicate state TAMIS network sites. Sites marked <span class="pollutant-tag none" style="font-size:0.75em;">Not in CSVs</span> are in the TCEQ reference registry but have no data in the current processed files.</p>
+
+        <table>
+            <thead>
+                <tr>
+                    <th style="width:10%;">AQS ID</th>
+                    <th style="width:25%;">Site Name</th>
+                    <th style="width:10%;">Network</th>
+                    <th style="width:10%;">In Data?</th>
+                    <th>Pollutants Monitored</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- ATASCOSA -->
+                <tr class="county-header"><td colspan="5">Atascosa County (1 site)</td></tr>
+                <tr>
+                    <td><code>480131090</code></td>
+                    <td>Pleasanton</td>
+                    <td><span class="badge badge-epa">EPA</span></td>
+                    <td>Yes</td>
+                    <td><span class="pollutant-tag pm25">PM2.5</span></td>
+                </tr>
+
+                <!-- BEXAR -->
+                <tr class="county-header"><td colspan="5">Bexar County (20 sites)</td></tr>
+                <tr>
+                    <td><code>480290032</code></td>
+                    <td>San Antonio Northwest</td>
+                    <td><span class="badge badge-epa">EPA</span></td>
+                    <td>Yes</td>
+                    <td><span class="pollutant-tag nox">NOx</span> <span class="pollutant-tag ozone">Ozone</span> <span class="pollutant-tag pm25">PM2.5</span></td>
+                </tr>
+                <tr>
+                    <td><code>480290052</code></td>
+                    <td>Camp Bullis</td>
+                    <td><span class="badge badge-epa">EPA</span></td>
+                    <td>Yes</td>
+                    <td><span class="pollutant-tag nox">NOx</span> <span class="pollutant-tag ozone">Ozone</span></td>
+                </tr>
+                <tr>
+                    <td><code>480290053</code></td>
+                    <td>Live Oak</td>
+                    <td><span class="badge badge-epa">EPA</span></td>
+                    <td>Yes</td>
+                    <td><span class="pollutant-tag pm10">PM10</span></td>
+                </tr>
+                <tr>
+                    <td><code>480290055</code></td>
+                    <td>CPS Pecan Valley</td>
+                    <td><span class="badge badge-tceq">TCEQ</span></td>
+                    <td>Yes</td>
+                    <td><span class="pollutant-tag co">CO</span> <span class="pollutant-tag nox">NOx</span> <span class="pollutant-tag ozone">Ozone</span> <span class="pollutant-tag so2">SO2</span></td>
+                </tr>
+                <tr>
+                    <td><code>480290059</code></td>
+                    <td>Calaveras Lake (EPA)</td>
+                    <td><span class="badge badge-both">EPA + TCEQ</span></td>
+                    <td>Yes</td>
+                    <td><span class="pollutant-tag nox">NOx</span> <span class="pollutant-tag ozone">Ozone</span> <span class="pollutant-tag pm25">PM2.5</span> <span class="pollutant-tag so2">SO2</span></td>
+                </tr>
+                <tr>
+                    <td><code>480290060</code></td>
+                    <td>San Antonio Palo Alto</td>
+                    <td><span class="badge badge-epa">EPA</span></td>
+                    <td>Yes</td>
+                    <td><span class="pollutant-tag pm10">PM10</span></td>
+                </tr>
+                <tr>
+                    <td><code>480290501</code></td>
+                    <td>Elm Creek Elementary</td>
+                    <td><span class="badge badge-tceq">TCEQ</span></td>
+                    <td>Yes</td>
+                    <td><span class="pollutant-tag ozone">Ozone</span></td>
+                </tr>
+                <tr>
+                    <td><code>480290502</code></td>
+                    <td>Fair Oaks Ranch</td>
+                    <td><span class="badge badge-tceq">TCEQ</span></td>
+                    <td>Yes</td>
+                    <td><span class="pollutant-tag ozone">Ozone</span></td>
+                </tr>
+                <tr>
+                    <td><code>480290622</code></td>
+                    <td>Heritage Middle School</td>
+                    <td><span class="badge badge-tceq">TCEQ</span></td>
+                    <td>Yes</td>
+                    <td><span class="pollutant-tag co">CO</span> <span class="pollutant-tag nox">NOx</span> <span class="pollutant-tag ozone">Ozone</span> <span class="pollutant-tag pm25">PM2.5</span> <span class="pollutant-tag so2">SO2</span></td>
+                </tr>
+                <tr>
+                    <td><code>480290623</code></td>
+                    <td>Gardner Rd. Gas SubStation</td>
+                    <td><span class="badge badge-tceq">TCEQ</span></td>
+                    <td style="color:#ca8a04; font-weight:600;">No</td>
+                    <td><span class="pollutant-tag none">Not in CSVs</span></td>
+                </tr>
+                <tr>
+                    <td><code>480290625</code></td>
+                    <td>Gate 9A CPS</td>
+                    <td><span class="badge badge-tceq">TCEQ</span></td>
+                    <td style="color:#ca8a04; font-weight:600;">No</td>
+                    <td><span class="pollutant-tag none">Not in CSVs</span></td>
+                </tr>
+                <tr>
+                    <td><code>480290626</code></td>
+                    <td>Gate 58 CPS</td>
+                    <td><span class="badge badge-tceq">TCEQ</span></td>
+                    <td style="color:#ca8a04; font-weight:600;">No</td>
+                    <td><span class="pollutant-tag none">Not in CSVs</span></td>
+                </tr>
+                <tr>
+                    <td><code>480290677</code></td>
+                    <td>San Antonio Old Hwy 90</td>
+                    <td><span class="badge badge-epa">EPA</span></td>
+                    <td>Yes</td>
+                    <td><span class="pollutant-tag pm25">PM2.5</span></td>
+                </tr>
+                <tr>
+                    <td><code>480291069</code></td>
+                    <td>Converse</td>
+                    <td><span class="badge badge-epa">EPA</span></td>
+                    <td>Yes</td>
+                    <td><span class="pollutant-tag co">CO</span> <span class="pollutant-tag nox">NOx</span> <span class="pollutant-tag pm25">PM2.5</span></td>
+                </tr>
+                <tr>
+                    <td><code>480291080</code></td>
+                    <td>Heritage MS SO2</td>
+                    <td><span class="badge badge-epa">EPA</span></td>
+                    <td>Yes</td>
+                    <td><span class="pollutant-tag so2">SO2</span></td>
+                </tr>
+                <tr>
+                    <td><code>480291087</code></td>
+                    <td>Windcrest</td>
+                    <td><span class="badge badge-epa">EPA</span></td>
+                    <td>Yes</td>
+                    <td><span class="pollutant-tag pm10">PM10</span> <span class="pollutant-tag pm25">PM2.5</span></td>
+                </tr>
+                <tr>
+                    <td><code>480291091</code></td>
+                    <td>San Antonio Red Hill Lane</td>
+                    <td><span class="badge badge-tceq">TCEQ</span></td>
+                    <td>Yes</td>
+                    <td><span class="pollutant-tag pm25">PM2.5</span></td>
+                </tr>
+                <tr>
+                    <td><code>480291097</code></td>
+                    <td>Von Ormy</td>
+                    <td><span class="badge badge-epa">EPA</span></td>
+                    <td>Yes</td>
+                    <td><span class="pollutant-tag nox">NOx</span></td>
+                </tr>
+                <tr style="background:#fef2f2; color:#7f1d1d;">
+                    <td><code>480291609</code></td>
+                    <td>Calaveras Lake Park <em>(TCEQ, excluded)</em></td>
+                    <td><span class="badge badge-tceq">TCEQ</span></td>
+                    <td><strong>No &mdash; TSP only</strong></td>
+                    <td><em>TSP (Total Suspended Particulate) &mdash; outside project scope</em></td>
+                </tr>
+                <tr>
+                    <td><code>480291610</code></td>
+                    <td>Government Canyon</td>
+                    <td><span class="badge badge-tceq">TCEQ</span></td>
+                    <td>Yes</td>
+                    <td><span class="pollutant-tag ozone">Ozone</span></td>
+                </tr>
+
+                <!-- CAMERON -->
+                <tr class="county-header"><td colspan="5">Cameron County (4 sites)</td></tr>
+                <tr>
+                    <td><code>480610006</code></td>
+                    <td>Brownsville</td>
+                    <td><span class="badge badge-epa">EPA</span></td>
+                    <td>Yes</td>
+                    <td><span class="pollutant-tag ozone">Ozone</span> <span class="pollutant-tag pm25">PM2.5</span></td>
+                </tr>
+                <tr>
+                    <td><code>480611023</code></td>
+                    <td>Harlingen</td>
+                    <td><span class="badge badge-epa">EPA</span></td>
+                    <td>Yes</td>
+                    <td><span class="pollutant-tag ozone">Ozone</span></td>
+                </tr>
+                <tr>
+                    <td><code>480611098</code></td>
+                    <td>Brownsville Roca</td>
+                    <td><span class="badge badge-epa">EPA</span></td>
+                    <td>Yes</td>
+                    <td><span class="pollutant-tag pm25">PM2.5</span></td>
+                </tr>
+                <tr>
+                    <td><code>480612004</code></td>
+                    <td>Port Isabel</td>
+                    <td><span class="badge badge-epa">EPA</span></td>
+                    <td>Yes</td>
+                    <td><span class="pollutant-tag pm25">PM2.5</span></td>
+                </tr>
+
+                <!-- COMAL -->
+                <tr class="county-header"><td colspan="5">Comal County (3 sites)</td></tr>
+                <tr>
+                    <td><code>480910503</code></td>
+                    <td>Bulverde Elementary</td>
+                    <td><span class="badge badge-tceq">TCEQ</span></td>
+                    <td>Yes</td>
+                    <td><span class="pollutant-tag nox">NOx</span> <span class="pollutant-tag ozone">Ozone</span></td>
+                </tr>
+                <tr>
+                    <td><code>480910505</code></td>
+                    <td>City of Garden Ridge</td>
+                    <td><span class="badge badge-tceq">TCEQ</span></td>
+                    <td>Yes</td>
+                    <td><span class="pollutant-tag nox">NOx</span> <span class="pollutant-tag ozone">Ozone</span></td>
+                </tr>
+                <tr>
+                    <td><code>480911088</code></td>
+                    <td>New Braunfels Oak Run Parkway</td>
+                    <td><span class="badge badge-tceq">TCEQ</span></td>
+                    <td>Yes</td>
+                    <td><span class="pollutant-tag pm10">PM10</span> <span class="pollutant-tag pm25">PM2.5</span></td>
+                </tr>
+
+                <!-- GUADALUPE -->
+                <tr class="county-header"><td colspan="5">Guadalupe County (2 sites)</td></tr>
+                <tr>
+                    <td><code>481870504</code></td>
+                    <td>New Braunfels Airport</td>
+                    <td><span class="badge badge-tceq">TCEQ</span></td>
+                    <td>Yes</td>
+                    <td><span class="pollutant-tag nox">NOx</span> <span class="pollutant-tag ozone">Ozone</span></td>
+                </tr>
+                <tr>
+                    <td><code>481870506</code></td>
+                    <td>Seguin Outdoor Learning Center</td>
+                    <td><span class="badge badge-tceq">TCEQ</span></td>
+                    <td>Yes</td>
+                    <td><span class="pollutant-tag nox">NOx</span> <span class="pollutant-tag ozone">Ozone</span></td>
+                </tr>
+
+                <!-- HIDALGO -->
+                <tr class="county-header"><td colspan="5">Hidalgo County (2 sites)</td></tr>
+                <tr>
+                    <td><code>482150043</code></td>
+                    <td>Mission</td>
+                    <td><span class="badge badge-epa">EPA</span></td>
+                    <td>Yes</td>
+                    <td><span class="pollutant-tag ozone">Ozone</span> <span class="pollutant-tag pm10">PM10</span> <span class="pollutant-tag pm25">PM2.5</span></td>
+                </tr>
+                <tr>
+                    <td><code>482151046</code></td>
+                    <td>Edinburg</td>
+                    <td><span class="badge badge-epa">EPA</span></td>
+                    <td>Yes</td>
+                    <td><span class="pollutant-tag pm10">PM10</span> <span class="pollutant-tag pm25">PM2.5</span></td>
+                </tr>
+
+                <!-- KARNES -->
+                <tr class="county-header"><td colspan="5">Karnes County (1 site)</td></tr>
+                <tr>
+                    <td><code>482551070</code></td>
+                    <td>Karnes City</td>
+                    <td><span class="badge badge-epa">EPA</span></td>
+                    <td>Yes</td>
+                    <td><span class="pollutant-tag nox">NOx</span></td>
+                </tr>
+
+                <!-- KLEBERG -->
+                <tr class="county-header"><td colspan="5">Kleberg County (1 site)</td></tr>
+                <tr>
+                    <td><code>482730314</code></td>
+                    <td>Kingsville</td>
+                    <td><span class="badge badge-epa">EPA</span></td>
+                    <td>Yes</td>
+                    <td><span class="pollutant-tag pm25">PM2.5</span></td>
+                </tr>
+
+                <!-- MAVERICK -->
+                <tr class="county-header"><td colspan="5">Maverick County (1 site)</td></tr>
+                <tr>
+                    <td><code>483230004</code></td>
+                    <td>Eagle Pass</td>
+                    <td><span class="badge badge-epa">EPA</span></td>
+                    <td>Yes</td>
+                    <td><span class="pollutant-tag pm25">PM2.5</span></td>
+                </tr>
+
+                <!-- NUECES -->
+                <tr class="county-header"><td colspan="5">Nueces County (7 sites)</td></tr>
+                <tr>
+                    <td><code>483550025</code></td>
+                    <td>Corpus Christi West</td>
+                    <td><span class="badge badge-epa">EPA</span></td>
+                    <td>Yes</td>
+                    <td><span class="pollutant-tag ozone">Ozone</span> <span class="pollutant-tag so2">SO2</span></td>
+                </tr>
+                <tr>
+                    <td><code>483550026</code></td>
+                    <td>Corpus Christi Tuloso</td>
+                    <td><span class="badge badge-epa">EPA</span></td>
+                    <td>Yes</td>
+                    <td><span class="pollutant-tag ozone">Ozone</span> <span class="pollutant-tag so2">SO2</span></td>
+                </tr>
+                <tr>
+                    <td><code>483550029</code></td>
+                    <td>Corpus Christi Hillcrest</td>
+                    <td><span class="badge badge-tceq">TCEQ</span></td>
+                    <td>Yes</td>
+                    <td><span class="pollutant-tag vocs">VOCs</span></td>
+                </tr>
+                <tr>
+                    <td><code>483550032</code></td>
+                    <td>Corpus Christi Dona Park</td>
+                    <td><span class="badge badge-epa">EPA</span></td>
+                    <td>Yes</td>
+                    <td><span class="pollutant-tag pm25">PM2.5</span> <span class="pollutant-tag so2">SO2</span></td>
+                </tr>
+                <tr>
+                    <td><code>483550034</code></td>
+                    <td>Corpus Christi Holly</td>
+                    <td><span class="badge badge-epa">EPA</span></td>
+                    <td>Yes</td>
+                    <td><span class="pollutant-tag pm10">PM10</span> <span class="pollutant-tag pm25">PM2.5</span></td>
+                </tr>
+                <tr>
+                    <td><code>483550083</code></td>
+                    <td>Corpus Christi Palm</td>
+                    <td><span class="badge badge-tceq">TCEQ</span></td>
+                    <td>Yes</td>
+                    <td><span class="pollutant-tag vocs">VOCs</span></td>
+                </tr>
+                <tr>
+                    <td><code>483551024</code></td>
+                    <td>Williams Park</td>
+                    <td><span class="badge badge-tceq">TCEQ</span></td>
+                    <td style="color:#ca8a04; font-weight:600;">No</td>
+                    <td><span class="pollutant-tag none">Not in CSVs</span></td>
+                </tr>
+
+                <!-- VICTORIA -->
+                <tr class="county-header"><td colspan="5">Victoria County (1 site)</td></tr>
+                <tr>
+                    <td><code>484690003</code></td>
+                    <td>Victoria</td>
+                    <td><span class="badge badge-epa">EPA</span></td>
+                    <td>Yes</td>
+                    <td><span class="pollutant-tag ozone">Ozone</span></td>
+                </tr>
+
+                <!-- WEBB -->
+                <tr class="county-header"><td colspan="5">Webb County (3 sites)</td></tr>
+                <tr>
+                    <td><code>484790016</code></td>
+                    <td>Laredo Vidaurri</td>
+                    <td><span class="badge badge-epa">EPA</span></td>
+                    <td>Yes</td>
+                    <td><span class="pollutant-tag co">CO</span> <span class="pollutant-tag ozone">Ozone</span> <span class="pollutant-tag pm10">PM10</span></td>
+                </tr>
+                <tr>
+                    <td><code>484790017</code></td>
+                    <td>Laredo Santa Maria</td>
+                    <td><span class="badge badge-epa">EPA</span></td>
+                    <td>Yes</td>
+                    <td><span class="pollutant-tag co">CO</span> <span class="pollutant-tag pm10">PM10</span></td>
+                </tr>
+                <tr>
+                    <td><code>484790313</code></td>
+                    <td>Laredo Hachar</td>
+                    <td><span class="badge badge-epa">EPA</span></td>
+                    <td>Yes</td>
+                    <td><span class="pollutant-tag pm25">PM2.5</span></td>
+                </tr>
+
+                <!-- WILSON -->
+                <tr class="county-header"><td colspan="5">Wilson County (1 site)</td></tr>
+                <tr>
+                    <td><code>484931038</code></td>
+                    <td>Floresville</td>
+                    <td><span class="badge badge-epa">EPA</span></td>
+                    <td>Yes</td>
+                    <td><span class="pollutant-tag nox">NOx</span></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- REFERENCE-ONLY SITES -->
+    <div class="section">
+        <h2>Reference-Only Sites (Not in Processed Data)</h2>
+        <p style="margin-bottom:15px; color:#555; font-size:0.93em;">These 4 sites appear in the TCEQ reference registry (<code>Extra TCEQ Sites.xlsx</code>) but have no corresponding records in the 7 processed By_Pollutant CSV files. They are industrial fence-line monitors or potentially decommissioned stations.</p>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>AQS ID</th>
+                    <th>Site Name</th>
+                    <th>County</th>
+                    <th>Possible Explanation</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>480290623</code></td>
+                    <td>Gardner Rd. Gas SubStation</td>
+                    <td>Bexar</td>
+                    <td>CPS Energy industrial fence-line monitor; likely special-purpose SO2/H2S compliance monitoring</td>
+                </tr>
+                <tr>
+                    <td><code>480290625</code></td>
+                    <td>Gate 9A CPS</td>
+                    <td>Bexar</td>
+                    <td>CPS Energy facility perimeter; industrial compliance monitoring not included in ambient AQ network</td>
+                </tr>
+                <tr>
+                    <td><code>480290626</code></td>
+                    <td>Gate 58 CPS</td>
+                    <td>Bexar</td>
+                    <td>CPS Energy facility perimeter; industrial compliance monitoring not included in ambient AQ network</td>
+                </tr>
+                <tr>
+                    <td><code>483551024</code></td>
+                    <td>Williams Park</td>
+                    <td>Nueces</td>
+                    <td>Corpus Christi area; may be decommissioned or data not available in TAMIS download window (2016&ndash;2025)</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="note-box">
+            <strong>Summary: 42 Active + 5 Non-Scope = 47 Total</strong>
+            Of the 18 TCEQ sites in the reference registry, 14 were successfully integrated into the processed data pipeline (including Corpus Christi Palm, ingested April 2026 after its raw TCEQ TAMIS file was downloaded). The remaining 5 sites fall outside active analysis:
+            <ul>
+                <li><strong>3 CPS Energy fence-line monitors</strong> (Gardner Rd., Gate 9A, Gate 58) &mdash; industrial compliance stations, not part of the ambient AQ network.</li>
+                <li><strong>Calaveras Lake Park (480291609)</strong> &mdash; TCEQ-operated, measures only Total Suspended Particulate (TSP), which is outside the project's pollutant scope. Note: this is a SEPARATE physical station from Calaveras Lake (480290059, EPA), which IS active.</li>
+                <li><strong>Williams Park (483551024)</strong> &mdash; Nueces County, confirmed disabled.</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- DATA AVAILABILITY MATRIX -->
+    <div class="section">
+        <h2>Site &times; Pollutant Availability Matrix</h2>
+        <p style="margin-bottom:15px; color:#555; font-size:0.93em;">Quick-reference showing which pollutants are actively monitored at each site with data in the processed files.</p>
+
+        <div style="overflow-x: auto;">
+        <table style="font-size:0.82em;">
+            <thead>
+                <tr>
+                    <th style="min-width:180px;">Site</th>
+                    <th style="text-align:center;">O3</th>
+                    <th style="text-align:center;">NOx</th>
+                    <th style="text-align:center;">PM2.5</th>
+                    <th style="text-align:center;">PM10</th>
+                    <th style="text-align:center;">SO2</th>
+                    <th style="text-align:center;">CO</th>
+                    <th style="text-align:center;">VOCs</th>
+                    <th style="text-align:center;">Network</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>Pleasanton</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center; color:#2563eb; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"><span class="badge badge-epa" style="font-size:0.7em;">EPA</span></td></tr>
+                <tr><td>SA Northwest</td><td style="text-align:center; color:#059669; font-weight:700;">&#9679;</td><td style="text-align:center; color:#dc2626; font-weight:700;">&#9679;</td><td style="text-align:center; color:#2563eb; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"><span class="badge badge-epa" style="font-size:0.7em;">EPA</span></td></tr>
+                <tr><td>Camp Bullis</td><td style="text-align:center; color:#059669; font-weight:700;">&#9679;</td><td style="text-align:center; color:#dc2626; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"><span class="badge badge-epa" style="font-size:0.7em;">EPA</span></td></tr>
+                <tr><td>Live Oak</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center; color:#7c3aed; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"><span class="badge badge-epa" style="font-size:0.7em;">EPA</span></td></tr>
+                <tr><td>CPS Pecan Valley</td><td style="text-align:center; color:#059669; font-weight:700;">&#9679;</td><td style="text-align:center; color:#dc2626; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center; color:#ca8a04; font-weight:700;">&#9679;</td><td style="text-align:center; color:#c2410c; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center;"><span class="badge badge-tceq" style="font-size:0.7em;">TCEQ</span></td></tr>
+                <tr><td>Calaveras Lake (EPA)</td><td style="text-align:center; color:#059669; font-weight:700;">&#9679;</td><td style="text-align:center; color:#dc2626; font-weight:700;">&#9679;</td><td style="text-align:center; color:#2563eb; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center; color:#ca8a04; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"><span class="badge badge-both" style="font-size:0.7em;">BOTH</span></td></tr>
+                <tr style="background:#fef2f2; color:#7f1d1d;"><td>Calaveras Lake Park <em>(TCEQ, excluded &mdash; TSP only)</em></td><td colspan="7" style="text-align:center; font-style:italic;">Measures only Total Suspended Particulate, outside project scope</td><td style="text-align:center;"><span class="badge badge-tceq" style="font-size:0.7em;">TCEQ</span></td></tr>
+                <tr><td>SA Palo Alto</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center; color:#7c3aed; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"><span class="badge badge-epa" style="font-size:0.7em;">EPA</span></td></tr>
+                <tr><td>Elm Creek Elem.</td><td style="text-align:center; color:#059669; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"><span class="badge badge-tceq" style="font-size:0.7em;">TCEQ</span></td></tr>
+                <tr><td>Fair Oaks Ranch</td><td style="text-align:center; color:#059669; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"><span class="badge badge-tceq" style="font-size:0.7em;">TCEQ</span></td></tr>
+                <tr><td>Heritage Middle School</td><td style="text-align:center; color:#059669; font-weight:700;">&#9679;</td><td style="text-align:center; color:#dc2626; font-weight:700;">&#9679;</td><td style="text-align:center; color:#2563eb; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center; color:#ca8a04; font-weight:700;">&#9679;</td><td style="text-align:center; color:#c2410c; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center;"><span class="badge badge-tceq" style="font-size:0.7em;">TCEQ</span></td></tr>
+                <tr><td>SA Old Hwy 90</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center; color:#2563eb; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"><span class="badge badge-epa" style="font-size:0.7em;">EPA</span></td></tr>
+                <tr><td>Converse</td><td style="text-align:center;"></td><td style="text-align:center; color:#dc2626; font-weight:700;">&#9679;</td><td style="text-align:center; color:#2563eb; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center; color:#c2410c; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center;"><span class="badge badge-epa" style="font-size:0.7em;">EPA</span></td></tr>
+                <tr><td>Heritage MS SO2</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center; color:#ca8a04; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"><span class="badge badge-epa" style="font-size:0.7em;">EPA</span></td></tr>
+                <tr><td>Windcrest</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center; color:#2563eb; font-weight:700;">&#9679;</td><td style="text-align:center; color:#7c3aed; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"><span class="badge badge-epa" style="font-size:0.7em;">EPA</span></td></tr>
+                <tr><td>SA Red Hill Lane</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center; color:#2563eb; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"><span class="badge badge-tceq" style="font-size:0.7em;">TCEQ</span></td></tr>
+                <tr><td>Von Ormy</td><td style="text-align:center;"></td><td style="text-align:center; color:#dc2626; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"><span class="badge badge-epa" style="font-size:0.7em;">EPA</span></td></tr>
+                <tr><td>Government Canyon</td><td style="text-align:center; color:#059669; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"><span class="badge badge-tceq" style="font-size:0.7em;">TCEQ</span></td></tr>
+                <tr><td>Brownsville</td><td style="text-align:center; color:#059669; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center; color:#2563eb; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"><span class="badge badge-epa" style="font-size:0.7em;">EPA</span></td></tr>
+                <tr><td>Harlingen</td><td style="text-align:center; color:#059669; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"><span class="badge badge-epa" style="font-size:0.7em;">EPA</span></td></tr>
+                <tr><td>Brownsville Roca</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center; color:#2563eb; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"><span class="badge badge-epa" style="font-size:0.7em;">EPA</span></td></tr>
+                <tr><td>Port Isabel</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center; color:#2563eb; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"><span class="badge badge-epa" style="font-size:0.7em;">EPA</span></td></tr>
+                <tr><td>Bulverde Elementary</td><td style="text-align:center; color:#059669; font-weight:700;">&#9679;</td><td style="text-align:center; color:#dc2626; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"><span class="badge badge-tceq" style="font-size:0.7em;">TCEQ</span></td></tr>
+                <tr><td>City of Garden Ridge</td><td style="text-align:center; color:#059669; font-weight:700;">&#9679;</td><td style="text-align:center; color:#dc2626; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"><span class="badge badge-tceq" style="font-size:0.7em;">TCEQ</span></td></tr>
+                <tr><td>NB Oak Run Pkwy</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center; color:#2563eb; font-weight:700;">&#9679;</td><td style="text-align:center; color:#7c3aed; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"><span class="badge badge-tceq" style="font-size:0.7em;">TCEQ</span></td></tr>
+                <tr><td>NB Airport</td><td style="text-align:center; color:#059669; font-weight:700;">&#9679;</td><td style="text-align:center; color:#dc2626; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"><span class="badge badge-tceq" style="font-size:0.7em;">TCEQ</span></td></tr>
+                <tr><td>Seguin OLC</td><td style="text-align:center; color:#059669; font-weight:700;">&#9679;</td><td style="text-align:center; color:#dc2626; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"><span class="badge badge-tceq" style="font-size:0.7em;">TCEQ</span></td></tr>
+                <tr><td>Mission</td><td style="text-align:center; color:#059669; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center; color:#2563eb; font-weight:700;">&#9679;</td><td style="text-align:center; color:#7c3aed; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"><span class="badge badge-epa" style="font-size:0.7em;">EPA</span></td></tr>
+                <tr><td>Edinburg</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center; color:#2563eb; font-weight:700;">&#9679;</td><td style="text-align:center; color:#7c3aed; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"><span class="badge badge-epa" style="font-size:0.7em;">EPA</span></td></tr>
+                <tr><td>Karnes City</td><td style="text-align:center;"></td><td style="text-align:center; color:#dc2626; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"><span class="badge badge-epa" style="font-size:0.7em;">EPA</span></td></tr>
+                <tr><td>Kingsville</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center; color:#2563eb; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"><span class="badge badge-epa" style="font-size:0.7em;">EPA</span></td></tr>
+                <tr><td>Eagle Pass</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center; color:#2563eb; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"><span class="badge badge-epa" style="font-size:0.7em;">EPA</span></td></tr>
+                <tr><td>CC West</td><td style="text-align:center; color:#059669; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center; color:#ca8a04; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"><span class="badge badge-epa" style="font-size:0.7em;">EPA</span></td></tr>
+                <tr><td>CC Tuloso</td><td style="text-align:center; color:#059669; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center; color:#ca8a04; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"><span class="badge badge-epa" style="font-size:0.7em;">EPA</span></td></tr>
+                <tr><td>CC Hillcrest</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center; color:#be185d; font-weight:700;">&#9679;</td><td style="text-align:center;"><span class="badge badge-tceq" style="font-size:0.7em;">TCEQ</span></td></tr>
+                <tr><td>CC Dona Park</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center; color:#2563eb; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center; color:#ca8a04; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"><span class="badge badge-epa" style="font-size:0.7em;">EPA</span></td></tr>
+                <tr><td>CC Holly</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center; color:#2563eb; font-weight:700;">&#9679;</td><td style="text-align:center; color:#7c3aed; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"><span class="badge badge-epa" style="font-size:0.7em;">EPA</span></td></tr>
+                <tr><td>CC Palm</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center; color:#be185d; font-weight:700;">&#9679;</td><td style="text-align:center;"><span class="badge badge-tceq" style="font-size:0.7em;">TCEQ</span></td></tr>
+                <tr><td>Victoria</td><td style="text-align:center; color:#059669; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"><span class="badge badge-epa" style="font-size:0.7em;">EPA</span></td></tr>
+                <tr><td>Laredo Vidaurri</td><td style="text-align:center; color:#059669; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center; color:#7c3aed; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center; color:#c2410c; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center;"><span class="badge badge-epa" style="font-size:0.7em;">EPA</span></td></tr>
+                <tr><td>Laredo Santa Maria</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center; color:#7c3aed; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center; color:#c2410c; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center;"><span class="badge badge-epa" style="font-size:0.7em;">EPA</span></td></tr>
+                <tr><td>Laredo Hachar</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center; color:#2563eb; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"><span class="badge badge-epa" style="font-size:0.7em;">EPA</span></td></tr>
+                <tr><td>Floresville</td><td style="text-align:center;"></td><td style="text-align:center; color:#dc2626; font-weight:700;">&#9679;</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"><span class="badge badge-epa" style="font-size:0.7em;">EPA</span></td></tr>
+            </tbody>
+        </table>
+        </div>
+    </div>
+
+    <!-- METHODOLOGY -->
+    <div class="section">
+        <h2>Audit Methodology</h2>
+        <p style="color:#555; font-size:0.93em; margin-bottom:15px;">This inventory was compiled on April 13, 2026 by auditing all data sources in the project pipeline:</p>
+
+        <div class="note-box" style="background:#f8fafc; border-color:#e2e8f0; color:#475569;">
+            <strong style="color:#1a365d;">Step 1: Processed CSV Scan</strong>
+            Extracted unique <code>(aqsid, site_name, county_name, data_source)</code> tuples from all 7 By_Pollutant CSV files in <code>01_Data/Processed/By_Pollutant/</code>. As of v0.3.2 (April 15, 2026), this identifies <strong>42 unique AQS IDs</strong> with active in-scope pollutant data (up from 41 after the Corpus Christi Palm VOCs ingestion).
+        </div>
+        <div class="note-box" style="background:#f8fafc; border-color:#e2e8f0; color:#475569;">
+            <strong style="color:#1a365d;">Step 2: TCEQ Reference Cross-Check</strong>
+            Compared against <code>Extra TCEQ Sites.xlsx</code> in <code>!Final Raw Data/</code>, which lists all 18 TCEQ supplemental monitoring sites originally identified for the study area. Found 6 AQS IDs present in the reference but absent from the processed CSVs.
+        </div>
+        <div class="note-box" style="background:#f8fafc; border-color:#e2e8f0; color:#475569;">
+            <strong style="color:#1a365d;">Step 3: Reconciliation</strong>
+            Combined both sources into a unified 47-site registry. Identified network attribution (EPA, TCEQ, or dual), pollutant coverage per site, and flagged reference-only entries with no active data. County name capitalization inconsistencies (BEXAR vs. Bexar, NUECES vs. Nueces) were normalized for this report.
+        </div>
+    </div>
+
+    <!-- FOOTER -->
+    <div class="footer">
+        <p><strong>South Texas Air Quality Analysis</strong> &mdash; Melaram Lab, Texas A&amp;M University &ndash; Corpus Christi</p>
+        <p>Report 10 of 10 &bull; Generated April 13, 2026 &bull; Data period: January 2015 &ndash; November 2025</p>
+        <p style="margin-top:10px;">5,843,628 pollutant observations &bull; 47 monitoring sites &bull; 13 counties &bull; 2 monitoring networks</p>
+    </div>
+
+</div>
+</body>
+</html>

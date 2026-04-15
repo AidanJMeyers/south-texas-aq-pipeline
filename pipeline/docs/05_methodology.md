@@ -124,18 +124,47 @@ if s.index.duplicated().any():
 This matches EPA AQS's standard practice of averaging across POCs when
 computing design values.
 
-### Per-group counts (pipeline run April 2026)
+### Per-group counts (pipeline v0.3.3, April 2026)
 
-| Pollutant | Raw rows | Exact-dup drops | Rows kept | Same-key value conflicts |
-|---|---:|---:|---:|---:|
-| NOx_Family | 1,989,602 | 551,305 | 1,438,297 | — |
-| Ozone | 1,823,627 | 311,508 | 1,512,119 | — |
-| PM2.5 | 1,168,298 | 110,481 | 1,057,817 | — |
-| SO2 | 524,039 | 0 | 524,039 | 80,755 |
-| CO | 191,448 | 0 | 191,448 | 0 |
-| PM10 | 99,910 | 0 | 99,910 | 0 |
-| VOCs | 46,704 | 0 | 46,704 | 0 |
-| **Total** | **5,843,628** | **973,294** | **4,870,334** | |
+| Pollutant | Raw rows | Exact-dup drops | Out-of-scope filter drops | Rows in parquet | Notes |
+|---|---:|---:|---:|---:|---|
+| NOx_Family | 1,989,602 | 551,305 | 251,328 | 1,186,969 | Calaveras TCEQ feed drop |
+| Ozone | 1,823,627 | 311,508 | 85,025 | 1,427,094 | Calaveras TCEQ feed drop |
+| PM2.5 | 1,168,298 | 110,481 | 60,377 | 997,440 | Calaveras TCEQ feed drop |
+| SO2 | 524,039 | 0 | 82,116 | 441,923 | Calaveras TCEQ feed drop |
+| CO | 191,448 | 0 | 0 | 191,448 | |
+| PM10 | 99,910 | 0 | 0 | 99,910 | |
+| VOCs | 3,354,321 | 0 | 0 | 3,354,321 | CC Palm + Hillcrest |
+| **Total** | **9,151,245** | **973,294** | **478,846** | **7,699,105** | |
+
+## 2b. Out-of-scope row filtering
+
+After deduplication and before unit normalization, step 01 applies
+per-row filters defined in
+`pipeline/step_01_build_pollutant_store.py::OUT_OF_SCOPE_FILTERS`.
+Each filter is an AND over `{column: value}` matches; matching rows are
+dropped from the parquet store and logged.
+
+### Current filters (v0.3.3)
+
+| Filter | Rule | Rationale |
+|---|---|---|
+| Calaveras Lake TCEQ feed | `aqsid='480290059' AND data_source='TCEQ'` | TCEQ republishes the EPA feed for this site through TAMIS. Rows partially match EPA's `sample_measurement` (exact dups get dropped during dedup) and partially carry value conflicts from rounding / QC differences. Using only the EPA feed gives a single authoritative source per site. See [06_data_quality.md issue #8b](./06_data_quality.md). |
+
+### How to add a new filter
+
+Edit `OUT_OF_SCOPE_FILTERS` in step 01:
+
+```python
+OUT_OF_SCOPE_FILTERS: list[tuple[str, dict]] = [
+    ("description", {"col": "value", ...}),
+    # Add new filters here
+]
+```
+
+Rerun with `python pipeline/run_pipeline.py --only 01,03,04,05,07` to
+propagate changes through every downstream layer. Document the new
+filter in `06_data_quality.md` with a clear rationale.
 
 ## 3. NAAQS design value computation
 

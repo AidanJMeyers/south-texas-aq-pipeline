@@ -75,6 +75,48 @@ UNIT_CONVERSIONS: dict[tuple[int, str], tuple[float, str]] = {
 }
 
 
+# ---------------------------------------------------------------------------
+# Out-of-scope row filters
+# ---------------------------------------------------------------------------
+# Rules for dropping rows that are in the merged By_Pollutant CSVs but
+# should NOT be in the analytical pipeline. Each rule is an AND over
+# column=value matches. Applied in step 01 right after dedup.
+#
+# Historical rationale:
+#
+#   Calaveras Lake TCEQ feed — The EPA monitor at Calaveras Lake (AQSID
+#   480290059) has a parallel TCEQ data feed in the merged CSVs
+#   (~478,846 rows post-dedup across NOx_Family, Ozone, PM2.5, SO2). This
+#   parallel feed partially mirrors the EPA feed and carries some value
+#   conflicts. The project decision (v0.3.3) is to use **only** the EPA
+#   feed for this site and drop the TCEQ parallel entirely. Calaveras
+#   Lake Park (the separate TCEQ physical site at 480291609) measures
+#   only TSP and is out-of-scope — see site_lookup.py:EXCLUDED_SITES.
+
+OUT_OF_SCOPE_FILTERS: list[tuple[str, dict]] = [
+    (
+        "Calaveras Lake (480290059) TCEQ feed — use EPA only",
+        {"aqsid": "480290059", "data_source": "TCEQ"},
+    ),
+]
+
+
+def _drop_out_of_scope(df: pd.DataFrame, log) -> pd.DataFrame:
+    """Apply OUT_OF_SCOPE_FILTERS. Each filter is an AND of column matches."""
+    for desc, match in OUT_OF_SCOPE_FILTERS:
+        mask = pd.Series(True, index=df.index)
+        for col, val in match.items():
+            if col not in df.columns:
+                mask = pd.Series(False, index=df.index)
+                break
+            mask &= (df[col].astype(str) == str(val))
+        n = int(mask.sum())
+        if n:
+            df = df.loc[~mask].copy()
+            log.info(f"  filter: {desc}  ({n:,} rows dropped)")
+    return df
+
+
 def _normalize_units(df: pd.DataFrame, log) -> pd.DataFrame:
     """Apply per-(parameter, source) unit conversions and log row counts.
 
@@ -145,6 +187,7 @@ def main(cfg: PipelineConfig | None = None) -> bool:
             n_after_dedup = len(df)
             if n_dedup != n_after_dedup:
                 log.info(f"  dropped {n_dedup - n_after_dedup:,} exact-duplicate rows")
+            df = _drop_out_of_scope(df, log)
             df = _normalize_units(df, log)
             df = _enrich(df)
             n_out = len(df)

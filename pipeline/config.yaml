@@ -89,9 +89,15 @@ naaqs:
 # Tolerance allows ±1% to permit future minor reprocessing
 # ----------------------------------------------------------------------------
 expected:
-  # Row counts after v0.3.2 CC Palm VOCs ingestion.
-  # VOCs grew from 46,704 (Hillcrest only) to 3,354,321 (Hillcrest + CC Palm)
-  # when the real CC Palm AutoGC raw file was ingested.
+  # Raw row counts in the By_Pollutant CSVs (what the validator sees).
+  # These are BEFORE step 01's dedup + out-of-scope filters.
+  #
+  # History:
+  #   v0.3.2: VOCs grew from 46,704 (Hillcrest only) to 3,354,321 after
+  #           CC Palm VOCs raw file was ingested.
+  #   v0.3.3: No raw CSV change. Step 01 now drops Calaveras Lake TCEQ
+  #           feed (~478,846 rows post-dedup) via OUT_OF_SCOPE_FILTERS
+  #           to avoid mixing EPA + TCEQ feeds for the same EPA site.
   total_pollutant_rows:     9151245
   pollutant_rows:
     CO:          191448
@@ -101,12 +107,24 @@ expected:
     PM2.5:      1168298
     SO2:         524039
     VOCs:      3354321
+  # Expected row counts POST-filter (after step 01 writes parquet).
+  # Documented here for downstream validators / sanity checks; NOT
+  # enforced by step 00.
+  parquet_expected:
+    CO:          191448
+    NOx_Family: 1186969
+    Ozone:      1427094
+    PM10:        99910
+    PM2.5:       997440
+    SO2:         441923
+    VOCs:      3354321
+    total:     7699105
   # 42 sites currently have measurement data in the pipeline.
-  # 46 is the full site inventory split as:
-  #   42 active (includes new CC Palm VOCs 483550083)
-  #    3 CPS Energy fence-line reference-only (Gardner Rd, Gate 9A, Gate 58)
-  #    1 pending  (Calaveras Lake Park 480291609 — TCEQ monitor; data not downloaded)
-  #    1 disabled (Williams Park 483551024 — per inventory report)
+  # 47 total inventory:
+  #   42 active
+  #    3 reference (CPS Energy fence-line: Gardner Rd, Gate 9A, Gate 58)
+  #    1 excluded  (Calaveras Lake Park 480291609 — TSP only, outside scope)
+  #    1 disabled  (Williams Park 483551024 — per inventory report)
   active_sites:     42
   total_inventory:  47
   counties:         13

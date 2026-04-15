@@ -13,19 +13,23 @@ Builds the authoritative site inventory by combining four sources:
 
 Each row carries a ``data_status`` tag:
 
-    ``active``    — has measurement rows in the pipeline
-    ``reference`` — CPS fence-line monitors; registered but no data
-    ``pending``   — raw data not yet downloaded from TCEQ TAMIS
+    ``active``    — has measurement rows in the pipeline (42 sites)
+    ``reference`` — CPS fence-line monitors; registered but no data (3)
+    ``excluded``  — TCEQ monitors measuring pollutants outside project
+                    scope (Calaveras Lake Park 480291609 — TSP only) (1)
     ``disabled``  — historically registered but the station is no longer
-                    active (Williams Park 483551024 — confirmed per
-                    10_Site_Inventory_Report.html)
+                    active (Williams Park 483551024, confirmed per
+                    10_Site_Inventory_Report.html) (1)
 
-**Calaveras distinction:** AQSID ``480290059`` is **Calaveras Lake** (the
-EPA-operated monitor, 5.8+ years of data from Calaveras Lake proper).
-AQSID ``480291609`` is **Calaveras Lake Park** (a separate TCEQ monitor
-at the nearby park). They are DIFFERENT physical stations — do NOT
-deduplicate. Calaveras Lake Park currently has no raw data in the project;
-it is listed as ``pending``.
+Total inventory: 47 (42 active + 3 reference + 1 excluded + 1 disabled).
+
+**Calaveras distinction:** AQSID ``480290059`` is **Calaveras Lake** (EPA
+monitor, full criteria pollutant data in the pipeline). AQSID ``480291609``
+is **Calaveras Lake Park** (a separate TCEQ monitor at the nearby park
+that measures *only* total suspended particulate, TSP). TSP is outside
+the project's scope (we focus on PM₂.₅, PM₁₀, O₃, CO, NOx, SO₂, VOCs),
+so Calaveras Lake Park is tracked as ``excluded``. The two stations are
+distinct physical sites — do NOT deduplicate or alias them.
 """
 
 from __future__ import annotations
@@ -44,12 +48,11 @@ REFERENCE_ONLY_SITES = {
     "480290626": "Gate 58 CPS",
 }
 
-# Sites awaiting raw-data download from TCEQ TAMIS.
-# Calaveras Lake Park (480291609) is a SEPARATE TCEQ monitor from
-# Calaveras Lake (480290059, EPA) — not an alias. It has no raw data
-# downloaded into the project yet.
-PENDING_SITES = {
-    "480291609": ("Calaveras Lake Park", "Bexar", 29),
+# Sites that measure pollutants outside the project scope (TSP only,
+# radiation, etc.). These are tracked in the registry for completeness
+# but their data will never be loaded into the pipeline.
+EXCLUDED_SITES = {
+    "480291609": ("Calaveras Lake Park", "Bexar", 29, "TSP only — outside project scope (PM2.5/PM10/O3/CO/NOx/SO2/VOCs)"),
 }
 
 # Sites that appear in the inventory as historically registered but are
@@ -138,12 +141,12 @@ def build_site_registry(cfg: PipelineConfig) -> pd.DataFrame:
 
     active_ids = set(active["aqsid"])
 
-    # ---- 3. Sites pending TCEQ TAMIS download ---------------------------
-    pending_rows = []
-    for aqsid, (name, county, county_code) in PENDING_SITES.items():
+    # ---- 3. Excluded sites (out-of-scope pollutants) --------------------
+    excluded_rows = []
+    for aqsid, (name, county, county_code, note) in EXCLUDED_SITES.items():
         if aqsid in active_ids:
-            continue  # already has data; promoted to active automatically
-        pending_rows.append({
+            continue
+        excluded_rows.append({
             "aqsid": aqsid,
             "state_code": 48,
             "county_code": county_code,
@@ -151,14 +154,14 @@ def build_site_registry(cfg: PipelineConfig) -> pd.DataFrame:
             "site_name": name,
             "county_name": county,
             "network": "TCEQ",
-            "pollutants": "",
+            "pollutants": "TSP",
             "n_pollutants": 0,
             "first_date": pd.NaT,
             "last_date": pd.NaT,
             "n_records": 0,
-            "data_status": "pending",
+            "data_status": "excluded",
             "co_located_with": "",
-            "notes": "Raw data not yet downloaded from TCEQ TAMIS",
+            "notes": note,
         })
 
     # ---- 4. Disabled sites ----------------------------------------------
@@ -183,7 +186,7 @@ def build_site_registry(cfg: PipelineConfig) -> pd.DataFrame:
         })
 
     registry = pd.concat(
-        [active, pd.DataFrame(ref_rows), pd.DataFrame(pending_rows),
+        [active, pd.DataFrame(ref_rows), pd.DataFrame(excluded_rows),
          pd.DataFrame(disabled_rows)],
         ignore_index=True,
     )
