@@ -9,9 +9,9 @@ into unmonitored areas.
 
 ## Study area
 
-**13 counties**, 47 monitoring sites in the registry (41 active + 3
-reference-only CPS fence-line + 1 pending + 1 disabled + 1 TCEQ alias),
-15 weather stations.
+**13 counties**, 47 monitoring sites in the registry (42 active + 3
+reference-only CPS fence-line + 1 pending Calaveras Lake Park + 1 disabled
+Williams Park), 15 weather stations.
 
 | County | MSA / Region | Active AQ Sites | Weather Stations |
 |---|---|---:|---:|

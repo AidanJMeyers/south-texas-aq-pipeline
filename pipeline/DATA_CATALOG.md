@@ -14,7 +14,7 @@ Paths are relative to the project root (`AirQuality South TX/`).
 Hive-partitioned: `pollutant_group=X/year=YYYY/*.parquet`.
 Produced by: **step 01**.
 Source: the 7 `01_Data/Processed/By_Pollutant/*.csv` files.
-Expected rows: **~5,843,628** total.
+Expected rows: **~9,151,245** total (as of v0.3.2, after CC Palm VOCs ingestion).
 
 | Column | Type | Description |
 |---|---|---|

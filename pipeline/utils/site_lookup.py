@@ -1,36 +1,31 @@
 """Canonical South Texas AQ site registry.
 
-Builds the authoritative 47-site inventory by combining four sources:
+Builds the authoritative site inventory by combining four sources:
 
 1. **Pipeline data** — the sites that actually have measurement rows in
    ``data/parquet/daily/`` after step 04. These are the truly active sites
-   you can query against. Currently 41.
+   you can query against.
 2. **Enhanced monitoring sites CSV** — ``01_Data/Reference/enhanced_monitoring_sites.csv``
-   provides AQS-verified lat/lon for 29 sites (mostly EPA + a few TCEQ).
+   provides AQS-verified lat/lon for 29 sites.
 3. **Extra TCEQ Sites workbook** — ``!Final Raw Data/Extra TCEQ Sites.xlsx``
    provides lat/lon for 18 additional TCEQ CAMS sites.
-4. **Site inventory report** — ``06_HTML_Reports/10_Site_Inventory_Report.html``
-   lists all 47 sites known to the project.
+4. **Site inventory report** — ``06_HTML_Reports/10_Site_Inventory_Report.html``.
 
-Each output row carries a ``data_status`` tag so downstream consumers know
-exactly what they're looking at:
+Each row carries a ``data_status`` tag:
 
-    ``active``        — has measurement rows in the pipeline (41 sites)
-    ``reference``     — CPS fence-line monitors; registered but no data
-    ``pending``       — raw data not yet downloaded from TCEQ TAMIS
-                        (Corpus Christi Palm 483550083)
-    ``disabled``      — historically registered but the station is no
-                        longer active (Williams Park 483551024 —
-                        confirmed disabled in the site inventory report)
+    ``active``    — has measurement rows in the pipeline
+    ``reference`` — CPS fence-line monitors; registered but no data
+    ``pending``   — raw data not yet downloaded from TCEQ TAMIS
+    ``disabled``  — historically registered but the station is no longer
+                    active (Williams Park 483551024 — confirmed per
+                    10_Site_Inventory_Report.html)
 
-**Calaveras Lake note:** AQSID 480290059 (EPA) and 480291609 (TCEQ) both
-appear in registry sources, but **only 480290059 is ever used as the AQSID
-on actual measurement records** — even in raw files pulled from TCEQ TAMIS.
-480291609 is a TCEQ-internal alias that exists in the site metadata but
-never as a measurement ID. The two IDs are tracked as distinct registry
-rows with a ``co_located_with`` cross-reference. They are **not** joined or
-deduplicated — any "dedup" of the two would be meaningless because only
-one of them ever carries data.
+**Calaveras distinction:** AQSID ``480290059`` is **Calaveras Lake** (the
+EPA-operated monitor, 5.8+ years of data from Calaveras Lake proper).
+AQSID ``480291609`` is **Calaveras Lake Park** (a separate TCEQ monitor
+at the nearby park). They are DIFFERENT physical stations — do NOT
+deduplicate. Calaveras Lake Park currently has no raw data in the project;
+it is listed as ``pending``.
 """
 
 from __future__ import annotations
@@ -49,28 +44,18 @@ REFERENCE_ONLY_SITES = {
     "480290626": "Gate 58 CPS",
 }
 
-# Sites awaiting raw-data download from TCEQ TAMIS
+# Sites awaiting raw-data download from TCEQ TAMIS.
+# Calaveras Lake Park (480291609) is a SEPARATE TCEQ monitor from
+# Calaveras Lake (480290059, EPA) — not an alias. It has no raw data
+# downloaded into the project yet.
 PENDING_SITES = {
-    "483550083": "Corpus Christi Palm",
+    "480291609": ("Calaveras Lake Park", "Bexar", 29),
 }
 
 # Sites that appear in the inventory as historically registered but are
 # confirmed **disabled** per 06_HTML_Reports/10_Site_Inventory_Report.html
 DISABLED_SITES = {
-    "483551024": "Williams Park",
-}
-
-# TCEQ-internal aliases for physical locations whose measurement data is
-# ALWAYS written under a different AQSID. Keys here never appear as an
-# AQSID on actual measurement rows. This is informational only — the
-# pipeline never joins or dedupes on these pairs.
-TCEQ_INTERNAL_ALIASES: dict[str, dict] = {
-    "480291609": {
-        "site_name": "Calaveras Lake (TCEQ)",
-        "county_name": "Bexar",
-        "co_located_with": "480290059",  # EPA AQSID where data is written
-        "note": "TCEQ registry alias; measurement data always recorded under EPA AQSID 480290059",
-    },
+    "483551024": ("Williams Park", "Nueces", 355),
 }
 
 
@@ -151,37 +136,41 @@ def build_site_registry(cfg: PipelineConfig) -> pd.DataFrame:
             "notes": "CPS Energy fence-line monitor; registered in inventory, no measurement data",
         })
 
+    active_ids = set(active["aqsid"])
+
     # ---- 3. Sites pending TCEQ TAMIS download ---------------------------
     pending_rows = []
-    for aqsid, name in PENDING_SITES.items():
+    for aqsid, (name, county, county_code) in PENDING_SITES.items():
+        if aqsid in active_ids:
+            continue  # already has data; promoted to active automatically
         pending_rows.append({
             "aqsid": aqsid,
             "state_code": 48,
-            "county_code": 355,
+            "county_code": county_code,
             "site_number": int(aqsid[-4:]),
             "site_name": name,
-            "county_name": "Nueces",
+            "county_name": county,
             "network": "TCEQ",
-            "pollutants": "VOCs",
-            "n_pollutants": 1,
+            "pollutants": "",
+            "n_pollutants": 0,
             "first_date": pd.NaT,
             "last_date": pd.NaT,
             "n_records": 0,
             "data_status": "pending",
             "co_located_with": "",
-            "notes": "VOCs AutoGC data not yet downloaded from TCEQ TAMIS; raw file was mislabeled with this site's name but contained Bexar data",
+            "notes": "Raw data not yet downloaded from TCEQ TAMIS",
         })
 
     # ---- 4. Disabled sites ----------------------------------------------
     disabled_rows = []
-    for aqsid, name in DISABLED_SITES.items():
+    for aqsid, (name, county, county_code) in DISABLED_SITES.items():
         disabled_rows.append({
             "aqsid": aqsid,
             "state_code": 48,
-            "county_code": 355,
+            "county_code": county_code,
             "site_number": int(aqsid[-4:]),
             "site_name": name,
-            "county_name": "Nueces",
+            "county_name": county,
             "network": "TCEQ",
             "pollutants": "",
             "n_pollutants": 0,
@@ -193,30 +182,9 @@ def build_site_registry(cfg: PipelineConfig) -> pd.DataFrame:
             "notes": "Disabled per 06_HTML_Reports/10_Site_Inventory_Report.html",
         })
 
-    # ---- 5. TCEQ internal aliases (informational) -----------------------
-    alias_rows = []
-    for aqsid, info in TCEQ_INTERNAL_ALIASES.items():
-        alias_rows.append({
-            "aqsid": aqsid,
-            "state_code": 48,
-            "county_code": int(aqsid[2:5]),
-            "site_number": int(aqsid[-4:]),
-            "site_name": info["site_name"],
-            "county_name": info["county_name"],
-            "network": "TCEQ",
-            "pollutants": "",
-            "n_pollutants": 0,
-            "first_date": pd.NaT,
-            "last_date": pd.NaT,
-            "n_records": 0,
-            "data_status": "tceq_alias",
-            "co_located_with": info["co_located_with"],
-            "notes": info["note"],
-        })
-
     registry = pd.concat(
         [active, pd.DataFrame(ref_rows), pd.DataFrame(pending_rows),
-         pd.DataFrame(disabled_rows), pd.DataFrame(alias_rows)],
+         pd.DataFrame(disabled_rows)],
         ignore_index=True,
     )
 

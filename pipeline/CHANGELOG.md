@@ -2,6 +2,46 @@
 
 All notable changes to the South Texas AQ data pipeline are documented here.
 
+## [0.3.2] — 2026-04-15
+
+### Added
+
+- **Corpus Christi Palm VOCs data ingested.** The real CC Palm AutoGC VOCs
+  raw file (3,307,617 rows, 46 VOC parameter codes, single site 483550083,
+  2016–2025 coverage) was downloaded from TCEQ TAMIS and ingested into
+  `01_Data/Processed/By_Pollutant/VOCs_AllCounties_2016_2025.csv`. The
+  merged VOCs CSV now contains **3,354,321 rows** across **2 sites**
+  (Hillcrest + CC Palm), up from 46,704 rows for 1 site.
+- Active site count is now **42** (up from 41).
+- CC Palm (483550083) is automatically picked up as `active` in the site
+  registry — no hardcoded entry needed, driven by data presence.
+
+### Changed
+
+- **Calaveras Lake Park reclassified as a distinct site**, not a TCEQ
+  alias. The `tceq_alias` status is removed from `site_lookup.py`. AQSID
+  `480291609` (Calaveras Lake Park, TCEQ-operated) is now listed as
+  `pending` — a separate physical monitoring station from AQSID
+  `480290059` (Calaveras Lake, EPA-operated). This is the **43rd
+  expected active site** and can be activated by downloading its raw
+  data from TCEQ TAMIS, the same way CC Palm was.
+- Old mislabeled file at
+  `!Final Raw Data/TCEQ Data - Missing Sites/TCEQ_VOCsAutoGC_2016-2025_CCPalmNueces.txt`
+  renamed to `TCEQ_BexarCriteria_2016-2025_MISLABELED.txt` (preserved
+  for archival — it contains 443k rows of Bexar criteria pollutant data
+  that are already correctly ingested via other CSVs).
+- Real CC Palm VOCs data saved under the proper filename
+  `TCEQ_VOCsAutoGC_2016-2025_CCPalmNueces.txt`.
+- Config `expected.total_pollutant_rows` updated 5,843,628 → 9,151,245.
+- Config `expected.pollutant_rows.VOCs` updated 46,704 → 3,354,321.
+- Config `expected.active_sites` updated 41 → 42.
+
+### Removed
+
+- `TCEQ_INTERNAL_ALIASES` dict and `tceq_alias` data_status from
+  `pipeline/utils/site_lookup.py`. Superseded by the distinct-site
+  treatment of Calaveras Lake Park.
+
 ## [0.3.1] — 2026-04-15
 
 ### Fixed

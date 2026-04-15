@@ -89,24 +89,25 @@ naaqs:
 # Tolerance allows ±1% to permit future minor reprocessing
 # ----------------------------------------------------------------------------
 expected:
-  total_pollutant_rows:     5843628
+  # Row counts after v0.3.2 CC Palm VOCs ingestion.
+  # VOCs grew from 46,704 (Hillcrest only) to 3,354,321 (Hillcrest + CC Palm)
+  # when the real CC Palm AutoGC raw file was ingested.
+  total_pollutant_rows:     9151245
   pollutant_rows:
-    CO:         191448
+    CO:          191448
     NOx_Family: 1989602
     Ozone:      1823627
-    PM10:       99910
+    PM10:        99910
     PM2.5:      1168298
-    SO2:        524039
-    VOCs:       46704
-  # 41 sites currently have measurement data in the pipeline.
-  # 47 is the full site inventory split as:
-  #   41 active
+    SO2:         524039
+    VOCs:      3354321
+  # 42 sites currently have measurement data in the pipeline.
+  # 46 is the full site inventory split as:
+  #   42 active (includes new CC Palm VOCs 483550083)
   #    3 CPS Energy fence-line reference-only (Gardner Rd, Gate 9A, Gate 58)
-  #    1 pending  (Corpus Christi Palm 483550083 — VOCs TAMIS download needed)
+  #    1 pending  (Calaveras Lake Park 480291609 — TCEQ monitor; data not downloaded)
   #    1 disabled (Williams Park 483551024 — per inventory report)
-  #    1 tceq_alias (Calaveras Lake TCEQ 480291609 — data written under EPA 480290059)
-  # Maximum reachable active count is 42 (adding CC Palm VOCs).
-  active_sites:     41
+  active_sites:     42
   total_inventory:  47
   counties:         13
   pollutant_groups:  7
