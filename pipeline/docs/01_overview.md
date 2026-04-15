@@ -46,7 +46,7 @@ their nearest neighbor's weather station via Haversine pairing (see
 | VOCs | 43xxx, 45xxx (individual species) | ppbC | TCEQ (Hillcrest only) |
 
 All pollutant values in the pipeline output are normalized to the **EPA unit
-convention** — see [methodology §Unit normalization](./05_methodology.md#unit-normalization).
+convention** — see [methodology §Unit normalization](./05_methodology.md#1-unit-normalization).
 
 ## Weather and irradiance variables
 

@@ -23,7 +23,7 @@ Bexar sites — an impossible number against the 0.070 ppm standard.
 
 **Fix:** `pipeline/step_01_build_pollutant_store.py::_normalize_units` now
 multiplies TCEQ ozone rows by 0.001 before writing to parquet. 638,174
-rows affected. See [methodology §Unit normalization](./05_methodology.md#unit-normalization).
+rows affected. See [methodology §Unit normalization](./05_methodology.md#1-unit-normalization).
 
 **Verification:** Post-fix, Bexar 8-hr ozone 4th-max values are 0.063–0.077
 ppm — consistent with the San Antonio MSA's documented nonattainment.

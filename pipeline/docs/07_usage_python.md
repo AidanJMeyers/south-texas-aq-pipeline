@@ -198,4 +198,4 @@ See [10_usage_sql.md](./10_usage_sql.md) for more query examples.
    via multiple `parameter_code` values (e.g. NO₂ has 42602, NOx has 42603).
    If you want "NO₂ concentration" specifically, filter by `parameter_code == 42602`.
 
-6. **2025 is incomplete.** See [06_data_quality.md issue 12](./06_data_quality.md#12-2025-data-is-partial).
+6. **2025 is incomplete.** See [06_data_quality.md issue 13](./06_data_quality.md#13-2025-data-is-partial).

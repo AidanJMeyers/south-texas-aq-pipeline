@@ -1,0 +1,176 @@
+# =============================================================================
+# South Texas Air Quality Pipeline — MkDocs site config
+# -----------------------------------------------------------------------------
+# Builds the pipeline/docs/ markdown into a static site with the Material theme.
+# Deployed automatically to GitHub Pages via .github/workflows/docs.yml.
+#
+# Local preview:
+#   pip install -r requirements-docs.txt
+#   mkdocs serve
+#   # Open http://127.0.0.1:8000
+#
+# Manual deploy (not usually needed — CI handles this):
+#   mkdocs gh-deploy
+# =============================================================================
+
+site_name: "South Texas Air Quality Pipeline"
+site_description: "Reproducible data pipeline for ambient air quality monitoring in 13 South Texas counties (2015–2025). Melaram Lab, TAMU-CC."
+site_author: "Melaram Lab, Texas A&M University–Corpus Christi"
+site_url: "https://melaram-lab.github.io/south-texas-aq-pipeline/"
+
+# Repo (adjust once you create the GitHub repo — these two lines enable the
+# "Edit on GitHub" button on every page)
+repo_name: "melaram-lab/south-texas-aq-pipeline"
+repo_url: "https://github.com/melaram-lab/south-texas-aq-pipeline"
+edit_uri: "edit/main/pipeline/docs/"
+
+# The markdown lives under pipeline/docs/ — point MkDocs at it
+docs_dir: "pipeline/docs"
+
+# Output: site/ (gitignored)
+site_dir: "site"
+
+# -----------------------------------------------------------------------------
+# Theme
+# -----------------------------------------------------------------------------
+theme:
+  name: material
+  language: en
+  palette:
+    # Light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: teal
+      accent: deep orange
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: teal
+      accent: deep orange
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  font:
+    text: Inter
+    code: JetBrains Mono
+  features:
+    - navigation.tabs           # top-level tabs
+    - navigation.tabs.sticky
+    - navigation.sections       # group sidebar items
+    - navigation.indexes        # section overview pages
+    - navigation.top            # back-to-top button
+    - navigation.tracking       # URL updates when scrolling
+    - toc.follow                # TOC highlights current section
+    - toc.integrate             # TOC inside left sidebar (hide right)
+    - search.suggest
+    - search.highlight
+    - search.share
+    - content.code.copy         # copy button on code blocks
+    - content.code.annotate     # annotations on code
+    - content.tabs.link         # link tabbed content across pages
+    - content.action.edit       # "Edit on GitHub"
+    - header.autohide
+  icon:
+    repo: fontawesome/brands/github
+    edit: material/pencil
+    view: material/eye
+
+# -----------------------------------------------------------------------------
+# Extensions — enables admonitions, tabs, math, mermaid, etc.
+# -----------------------------------------------------------------------------
+markdown_extensions:
+  # Standard
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+      toc_depth: 4
+  # PyMdown Extensions — the superset
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.betterem
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+  - pymdownx.snippets
+
+# -----------------------------------------------------------------------------
+# Plugins
+# -----------------------------------------------------------------------------
+plugins:
+  - search:
+      separator: '[\s\-,:!=\[\]()"`/]+|\.(?!\d)|&[lg]t;|(?!\b)(?=[A-Z][a-z])'
+  - git-revision-date-localized:
+      enable_creation_date: true
+      enable_git_follow: false       # suppress first-revision timestamp quirk
+      type: timeago
+      fallback_to_build_date: true
+
+# -----------------------------------------------------------------------------
+# Extra CSS / JS for math rendering
+# -----------------------------------------------------------------------------
+extra_javascript:
+  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/melaram-lab
+    - icon: fontawesome/solid/university
+      link: https://www.tamucc.edu/
+  generator: false  # hide "Made with Material for MkDocs"
+
+# -----------------------------------------------------------------------------
+# Navigation — matches the numbered layout in pipeline/docs/
+# -----------------------------------------------------------------------------
+nav:
+  - Home: index.md
+  - Project:
+      - 1. Overview: 01_overview.md
+      - 2. Data sources: 02_data_sources.md
+      - 3. Data schemas: 03_data_schemas.md
+      - 4. Pipeline architecture: 04_pipeline_architecture.md
+  - Methodology:
+      - 5. Methodology: 05_methodology.md
+      - 6. Data quality & known issues: 06_data_quality.md
+  - Usage guides:
+      - 7. Python: 07_usage_python.md
+      - 8. R / RStudio: 08_usage_r.md
+      - 9. Google Colab: 09_usage_colab.md
+      - 10. SQL / Postgres: 10_usage_sql.md
+  - Recipes & workflows:
+      - 15. Worked examples: 15_recipes.md
+  - Operations:
+      - 11. Reproducibility: 11_reproducibility.md
+      - 12. Configuration reference: 12_configuration_reference.md
+      - 13. Architecture decisions: 13_decisions.md
+      - 14. Publication protocol: 14_publication_protocol.md
+  - Citation: CITATION.cff

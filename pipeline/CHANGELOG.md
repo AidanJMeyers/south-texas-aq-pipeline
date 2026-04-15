@@ -2,6 +2,48 @@
 
 All notable changes to the South Texas AQ data pipeline are documented here.
 
+## [0.3.4] — 2026-04-15
+
+### Added
+
+- **MkDocs site** with Material for MkDocs theme, deployable to GitHub
+  Pages automatically on every push to `main`. Features: left sidebar
+  nav, full-text search, dark mode, per-page TOC, code copy buttons,
+  tabbed content (Python / R / SQL per recipe), git revision
+  timestamps, and "Edit on GitHub" links.
+- `mkdocs.yml` — site config pointing `docs_dir` at `pipeline/docs/`
+  (zero markdown rewriting required).
+- `requirements-docs.txt` — docs-only Python dependencies (separate
+  from the pipeline's `requirements.txt` so pipeline users don't need
+  them).
+- `.github/workflows/docs.yml` — GitHub Actions workflow that installs
+  deps, builds the site with `mkdocs build --strict`, and deploys to
+  GitHub Pages via the official `actions/deploy-pages@v4` action.
+- `PUBLISHING.md` at the repo root — step-by-step guide to publish the
+  docs site on GitHub Pages, including repo setup, placeholder
+  replacement, GitHub Pages enablement, custom-domain notes, and
+  troubleshooting.
+- `pipeline/docs/index.md` — new visual landing page with quickstart
+  tabs for Python / R / SQL / Colab users, visual pipeline diagram,
+  navigation cards, and version history table. Replaces the plain
+  `README.md` as the MkDocs home page.
+- `pipeline/docs/15_recipes.md` — 10 end-to-end worked examples for
+  common research tasks (NAAQS exceedance queries, time series trends,
+  seasonality, temperature-pollution correlation, VOC species
+  extraction, spatial plots, Methods-section prose generation,
+  EPA cross-check, collaborator subsetting). Each recipe includes
+  Python / R / SQL variants and expected output shapes.
+
+### Changed
+
+- `pipeline/docs/README.md` removed (superseded by the new
+  `index.md` landing page).
+- `.gitignore` extended with `site/` and `.cache/` to exclude MkDocs
+  build artifacts.
+- Minor anchor-link fixes in `01_overview.md`, `04_pipeline_architecture.md`,
+  `06_data_quality.md`, `07_usage_python.md` to match MkDocs' slug
+  conventions for numbered headings.
+
 ## [0.3.3] — 2026-04-15
 
 ### Changed

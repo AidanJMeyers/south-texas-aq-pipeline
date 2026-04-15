@@ -103,7 +103,7 @@ For each of 7 pollutant CSVs:
 1. Read with canonical 15-column dtype schema (`site_name` forced to string)
 2. **Drop exact full-row duplicates** (~973k rows total, mostly TCEQ rows
    duplicated by the upstream reorg step)
-3. **Normalize units** (see [methodology §Unit normalization](./05_methodology.md#unit-normalization)):
+3. **Normalize units** (see [methodology §Unit normalization](./05_methodology.md#1-unit-normalization)):
    TCEQ ozone rows are multiplied by 0.001 (ppb → ppm) to match EPA
 4. Derive `datetime`, `year`, `month`, `hour`, `season`
 5. Normalize `county_name` to title case (fixes COMAL/GUADALUPE/NUECES)
