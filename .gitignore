@@ -1,0 +1,86 @@
+# ============================================================================
+# South Texas Air Quality Pipeline — Git ignore rules
+# ============================================================================
+# Rationale: we track the *pipeline code and documentation* only, never the
+# raw data or the pipeline outputs. Outputs are reproducible from raw inputs
+# via `python pipeline/run_pipeline.py`.
+# ============================================================================
+
+# -- Pipeline outputs (generated, reproducible, never commit) ---------------
+data/
+data/**
+
+# -- Raw data (immutable, large, not project IP) ----------------------------
+!Final Raw Data/
+!Final Raw Data/**
+01_Data/
+!01_Data/Reference/
+!01_Data/Reference/**
+OneDrive*/
+
+# Exclude processed intermediates that are rebuilt by other scripts
+# (keep these locally but don't ship them)
+01_Data/Processed/
+01_Data/OpenwWeatherData/
+01_Data/Raw/
+
+# -- Project artifacts we don't need to version ----------------------------
+_Archive/
+_ORIGINAL_*/
+*.backup
+*.bak
+*~
+
+# -- Downstream analysis outputs -------------------------------------------
+AM_R_Notebooks/Output/
+03_Outputs/
+03_Reports/
+06_HTML_Reports/
+07_Figures/
+
+# -- Literature and grant materials ----------------------------------------
+04_Literature_Review/
+05_Grant_Proposals/
+
+# -- OS / editor / OneDrive cruft ------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+*.tmp
+*.temp
+.tmp.drivedownload/
+.tmp.driveupload/
+
+# -- Python --------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+ENV/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+pip-log.txt
+
+# -- Jupyter / R -----------------------------------------------------------
+.ipynb_checkpoints/
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+
+# -- Secrets ---------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+credentials.json
+secrets.yaml

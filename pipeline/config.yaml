@@ -1,0 +1,156 @@
+# ============================================================================
+# South Texas Air Quality Pipeline — Configuration
+# ----------------------------------------------------------------------------
+# Single source of truth for paths, data-quality thresholds, and NAAQS levels.
+# All pipeline steps import this via pipeline.utils.io.load_config().
+# ============================================================================
+
+project:
+  name: "South Texas Air Quality Analysis"
+  lab: "Melaram Lab, TAMU-CC"
+  lead: "Aidan Wolf"
+  study_period: [2015, 2025]
+  counties:
+    - Atascosa
+    - Bexar
+    - Cameron
+    - Comal
+    - Guadalupe
+    - Hidalgo
+    - Karnes
+    - Kleberg
+    - Maverick
+    - Nueces
+    - Victoria
+    - Webb
+    - Wilson
+
+# ----------------------------------------------------------------------------
+# Paths (all relative to ROOT — ROOT is auto-resolved at runtime)
+# ----------------------------------------------------------------------------
+paths:
+  # Inputs (read-only)
+  raw_epa:               "!Final Raw Data/EPA AQS Downloads"
+  raw_tceq:              "!Final Raw Data/TCEQ Data - Missing Sites"
+  tceq_registry:         "!Final Raw Data/Extra TCEQ Sites.xlsx"
+  processed_pollutant:   "01_Data/Processed/By_Pollutant"
+  processed_county:      "01_Data/Processed/By_County"
+  processed_weather:     "01_Data/Processed/Meteorological"
+  weather_master:        "01_Data/Processed/Meteorological/Weather_Irradiance_Master_2015_2025.csv"
+  site_mapping:          "01_Data/Processed/Meteorological/AQ_Weather_SiteMapping.csv"
+  # Authoritative site coordinate lookup (29 sites with confirmed lat/lon)
+  site_reference:        "01_Data/Reference/enhanced_monitoring_sites.csv"
+
+  # Outputs (pipeline-managed, safe to delete and rebuild)
+  pipeline_output:       "data"
+  parquet_pollutants:    "data/parquet/pollutants"
+  parquet_weather:       "data/parquet/weather"
+  parquet_naaqs:         "data/parquet/naaqs"
+  parquet_daily:         "data/parquet/daily"
+  parquet_combined:      "data/parquet/combined"
+  parquet_rolling:       "data/parquet/rolling"
+  csv_exports:           "data/csv"
+  rds_exports:           "data/rds"
+  logs:                  "data/_logs"
+  validation:            "data/_validation"
+
+  # Downstream references (read-only, not modified)
+  r_notebooks:           "AM_R_Notebooks"
+  html_reports:          "06_HTML_Reports"
+
+# ----------------------------------------------------------------------------
+# Data quality rules
+# ----------------------------------------------------------------------------
+data_quality:
+  hourly_completeness_threshold: 0.75    # 75% for daily aggregation
+  daily_completeness_threshold:  0.75    # 75% for NAAQS windows
+  ozone_8hr_min_hours:           6       # 6 of 8 hours
+  pm_daily_min_hours:           18       # 18 of 24 hours
+  max_measurement_gap_hours:    48       # Flag gaps > 48 hours
+  temperature_unit:         "kelvin"     # Weather master is in K
+
+# ----------------------------------------------------------------------------
+# NAAQS thresholds (units match raw sample_measurement)
+# Sources: 40 CFR Part 50; EPA NAAQS table (most recent)
+# ----------------------------------------------------------------------------
+naaqs:
+  ozone_8hr_ppm:        0.070
+  pm25_annual_ugm3:     9.0
+  pm25_24hr_ugm3:       35.0
+  pm10_24hr_ugm3:       150.0
+  co_8hr_ppm:           9.0
+  co_1hr_ppm:           35.0
+  so2_1hr_ppb:          75.0
+  no2_1hr_ppb:          100.0
+  no2_annual_ppb:       53.0
+
+# ----------------------------------------------------------------------------
+# Expected row counts (used by 00_validate_raw.py)
+# Tolerance allows ±1% to permit future minor reprocessing
+# ----------------------------------------------------------------------------
+expected:
+  total_pollutant_rows:     5843628
+  pollutant_rows:
+    CO:         191448
+    NOx_Family: 1989602
+    Ozone:      1823627
+    PM10:       99910
+    PM2.5:      1168298
+    SO2:        524039
+    VOCs:       46704
+  # 41 sites currently have measurement data in the pipeline.
+  # 43 is the target (adds Corpus Christi Palm + Williams Park once their
+  # VOC data is downloaded from TCEQ TAMIS). 47 is the full site inventory
+  # including 3 CPS fence-line reference-only sites and 1 dual-AQS-ID
+  # physical site (Calaveras Lake).
+  active_sites:     41
+  target_sites:     43
+  total_inventory:  47
+  counties:         13
+  pollutant_groups:  7
+  weather_rows:   1470050
+  weather_stations: 15
+  row_count_tolerance_pct: 1.0
+  date_min: "2015-01-01"
+  date_max: "2025-11-30"
+
+# ----------------------------------------------------------------------------
+# Postgres loader (step 07) — optional
+# ----------------------------------------------------------------------------
+# Connection URL is read from the AQ_POSTGRES_URL environment variable, not
+# from this file, so no secrets land on disk. If the env var is missing,
+# step 07 logs a warning and is skipped (not a failure).
+postgres:
+  enabled:      true
+  schema:       "aq"          # All tables go into this schema
+  chunksize:    50000          # Rows per INSERT batch
+  if_exists:    "replace"      # 'replace' | 'append' — replace is idempotent
+  # Which analysis-ready tables to load. Raw hourly data stays in parquet
+  # only — too large for free-tier Postgres.
+  tables:
+    - name:   "site_registry"
+      source: "csv"
+      path:   "data/csv/site_registry.csv"
+      indexes: ["aqsid"]
+
+    - name:   "naaqs_design_values"
+      source: "parquet"
+      path:   "data/parquet/naaqs/design_values.parquet"
+      indexes: ["aqsid", "year", "metric", "pollutant_group"]
+
+    - name:   "pollutant_daily"
+      source: "parquet"
+      path:   "data/parquet/daily/pollutant_daily.parquet"
+      indexes: ["aqsid", "date_local", "pollutant_group"]
+
+    - name:   "pollutant_monthly"
+      source: "parquet"
+      path:   "data/parquet/daily/pollutant_monthly.parquet"
+      indexes: ["aqsid", "year_month", "pollutant_group"]
+
+    - name:   "aq_weather_daily"
+      source: "parquet"
+      path:   "data/parquet/combined/aq_weather_daily.parquet"
+      indexes: ["aqsid", "date_local"]
+      # Skip gracefully if the free tier runs out of storage
+      skip_on_quota_error: true
