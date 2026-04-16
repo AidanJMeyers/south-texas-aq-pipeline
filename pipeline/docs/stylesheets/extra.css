@@ -59,6 +59,24 @@
 .md-header {
   border-bottom: 2px solid #c2410c;
 }
+
+/* Melaram Lab logo is a wide horizontal banner; scale it up in the
+   header slot so the wordmark is legible and the iconography reads. */
+.md-header__button.md-logo img,
+.md-header__button.md-logo svg {
+  height: 2.4rem;
+  width:  auto;
+  max-width: 12rem;
+}
+
+/* Hero logo on the landing page — big, centered, breathing room */
+.hero-logo {
+  display: block;
+  max-width: 560px;
+  width: 100%;
+  height: auto;
+  margin: 1.5rem auto 2rem;
+}
 .md-tabs {
   background-color: #162938;
 }

@@ -58,10 +58,8 @@ theme:
   font:
     text: Arial
     code: JetBrains Mono
-  # Logo / favicon — add a hosted image URL or docs/assets/logo.png when
-  # the Melaram Lab horizontal partnership logo is uploaded to the repo.
-  # logo: assets/melaram-lab-logo.png
-  # favicon: assets/favicon.png
+  logo: assets/melaram-lab-logo.png
+  favicon: assets/melaram-lab-logo.png
   features:
     - navigation.tabs           # top-level tabs
     - navigation.tabs.sticky

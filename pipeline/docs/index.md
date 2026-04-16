@@ -3,6 +3,8 @@ hide:
   - toc
 ---
 
+<img src="assets/melaram-lab-logo.png" alt="Melaram Lab" class="hero-logo" />
+
 # South Texas Air Quality Data Pipeline
 
 <span class="brand-badge">Melaram Lab</span>
