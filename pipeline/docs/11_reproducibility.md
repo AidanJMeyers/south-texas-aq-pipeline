@@ -33,7 +33,7 @@ separate OneDrive share for Melaram Lab members:
 
 **Download:** See the [downloads section on the docs site](https://aidanjmeyers.github.io/south-texas-aq-pipeline/#download-the-pipeline-inputs)
 for the current OneDrive URL. External collaborators can request access by
-emailing [BREATHE-CC@tamucc.edu](mailto:BREATHE-CC@tamucc.edu).
+emailing [aidan.meyers@tamucc.edu](mailto:aidan.meyers@tamucc.edu).
 
 **Install into the repo:**
 

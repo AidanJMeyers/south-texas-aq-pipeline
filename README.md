@@ -8,8 +8,9 @@ counties over the period 2015–2025.
 
 - **Lab:** [Melaram Lab](https://www.melaramlab.com), Texas A&M University–Corpus Christi
 - **Principal Investigator:** Dr. Rajesh Melaram, TAMU-CC
-- **Lead Developer:** Aidan Meyers
-- **Collaborators:** Manassa Kuchavaram, L. Jin, Donald E. Warden
+- **Lead Developers:** Aidan Meyers, Manassa Kuchavaram
+- **Collaborators:** L. Jin, Donald E. Warden
+- **Contact:** [aidan.meyers@tamucc.edu](mailto:aidan.meyers@tamucc.edu)
 - **Version:** 0.3.4 (April 2026)
 - **License:** [MIT](./LICENSE)
 - **Docs site:** https://aidanjmeyers.github.io/south-texas-aq-pipeline/
@@ -98,5 +99,6 @@ End-to-end runtime: **~20 minutes**. Outputs land under `data/` (parquet
 
 ## Contact
 
-Questions, bug reports, or collaborator requests: contact the
-[Melaram Lab](https://www.melaramlab.com) at Texas A&M University–Corpus Christi.
+Questions, bug reports, or collaborator requests:
+[aidan.meyers@tamucc.edu](mailto:aidan.meyers@tamucc.edu) ·
+[Melaram Lab](https://www.melaramlab.com) · Texas A&M University–Corpus Christi.

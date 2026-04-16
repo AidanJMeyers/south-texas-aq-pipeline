@@ -159,8 +159,9 @@ interpolation in downstream work. A complete issue catalog appears in
 
 - **Principal Investigator:** Dr. Rajesh Melaram, Melaram Lab,
   Texas A&M University–Corpus Christi
-- **Lead Developer:** Aidan Meyers, Melaram Lab, TAMU-CC
-- **Collaborators:** Manassa Kuchavaram (TAMU-CC), L. Jin, Donald E. Warden
+- **Lead Developers:** Aidan Meyers (TAMU-CC), Manassa Kuchavaram (TAMU-CC)
+- **Collaborators:** L. Jin, Donald E. Warden
+- **Contact:** [aidan.meyers@tamucc.edu](mailto:aidan.meyers@tamucc.edu)
 
 Source code repository:
 https://github.com/AidanJMeyers/south-texas-aq-pipeline

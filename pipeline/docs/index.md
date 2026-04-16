@@ -16,9 +16,9 @@ hide:
 
     **Lab:** Melaram Lab, Texas A&M University–Corpus Christi
     **Principal Investigator:** Dr. Rajesh Melaram, TAMU-CC
-    **Lead Developer:** Aidan Meyers
-    **Collaborators:** Manassa Kuchavaram, L. Jin, Donald E. Warden
-    **Contact:** [www.melaramlab.com](https://www.melaramlab.com)
+    **Lead Developers:** Aidan Meyers, Manassa Kuchavaram
+    **Collaborators:** L. Jin, Donald E. Warden
+    **Contact:** [aidan.meyers@tamucc.edu](mailto:aidan.meyers@tamucc.edu) · [www.melaramlab.com](https://www.melaramlab.com)
     **License:** MIT
 
 ## Pipeline schematic
@@ -152,7 +152,7 @@ python pipeline/run_pipeline.py
 !!! note "OneDrive access is currently restricted to Melaram Lab members."
 
     If you're an external collaborator and need access, email
-    [BREATHE-CC@tamucc.edu](mailto:BREATHE-CC@tamucc.edu) with your
+    [aidan.meyers@tamucc.edu](mailto:aidan.meyers@tamucc.edu) with your
     affiliation and intended use.
 
 ---

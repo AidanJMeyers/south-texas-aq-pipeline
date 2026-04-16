@@ -15,12 +15,14 @@ The project root is resolved at runtime (see [11_reproducibility.md](./11_reprod
 project:
   name: "South Texas Air Quality Analysis"
   lab: "Melaram Lab, TAMU-CC"
-  lead: "Aidan Meyers"
   principal_investigator: "Dr. Rajesh Melaram, TAMU-CC"
-  collaborators:
+  lead_developers:
+    - "Aidan Meyers, TAMU-CC"
     - "Manassa Kuchavaram, TAMU-CC"
+  collaborators:
     - "L. Jin"
     - "Donald E. Warden"
+  contact_email: "aidan.meyers@tamucc.edu"
   study_period: [2015, 2025]
   counties: [Atascosa, Bexar, Cameron, Comal, ...]
 ```
