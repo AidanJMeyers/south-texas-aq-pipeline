@@ -106,12 +106,12 @@ flowchart TD
 
 ### OneDrive bundle (for Melaram Lab members)
 
-<a href="https://onedrive.live.com/REPLACE_WITH_SHARE_LINK" class="download-cta">
-  :material-microsoft-onedrive: Download pipeline inputs from OneDrive
+<a href="https://melaramlab-my.sharepoint.com/:u:/p/coreteam/IQDdWC35UwcvQ52psdTLNknpAbxOhQ9RDX7GUhFESx4iYec?e=xWfs2E" class="download-cta">
+  :material-microsoft-onedrive: Download pipeline inputs from OneDrive (177 MB)
 </a>
 
 The OneDrive share contains a single zip file `south-texas-aq-inputs.zip`
-(~2 GB) with this exact layout:
+(**177 MB compressed** → ~1.8 GB uncompressed) with this exact layout:
 
 ```
 south-texas-aq-inputs/
