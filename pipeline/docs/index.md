@@ -35,8 +35,8 @@ hide:
 flowchart TD
     classDef input  fill:#E8F1F5,stroke:#213c4e,stroke-width:2px,color:#213c4e,font-weight:600
     classDef step   fill:#FFFFFF,stroke:#213c4e,stroke-width:2.5px,color:#213c4e,font-weight:600
-    classDef output fill:#c2410c,stroke:#7c2d0b,stroke-width:2.5px,color:#FFFFFF,font-weight:700
-    classDef db     fill:#213c4e,stroke:#0d1a24,stroke-width:2.5px,color:#FFFFFF,font-weight:700
+    classDef output fill:#FDEBD3,stroke:#c2410c,stroke-width:2.5px,color:#7c2d0b,font-weight:700
+    classDef db     fill:#FDEBD3,stroke:#c2410c,stroke-width:2.5px,color:#7c2d0b,font-weight:700
 
     subgraph INPUTS["&nbsp;RAW INPUTS (read-only)&nbsp;"]
         direction LR
