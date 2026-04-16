@@ -349,7 +349,11 @@ Months are mapped to meteorological seasons using the standard
 
 Implemented in `step_01_build_pollutant_store.py::_SEASON_MAP`.
 
-## 6. Citations
+## 6. Regulatory references and source documents
+
+The following documents define the NAAQS calculations, unit
+conventions, and completeness rules used by the pipeline. These are the
+authoritative sources — not self-citations of this project.
 
 1. **40 CFR Part 50** — National Primary and Secondary Ambient Air Quality Standards.
    Code of Federal Regulations. https://www.ecfr.gov/current/title-40/chapter-I/subchapter-C/part-50

@@ -7,7 +7,9 @@ normalizing, and analyzing ambient air quality data for 13 South Texas
 counties over the period 2015–2025.
 
 - **Lab:** [Melaram Lab](https://www.melaramlab.com), Texas A&M University–Corpus Christi
-- **Lead:** Aidan Wolf
+- **Principal Investigator:** Dr. Rajesh Melaram, TAMU-CC
+- **Lead Developer:** Aidan Meyers
+- **Collaborators:** Manassa Kuchavaram, L. Jin, Donald E. Warden
 - **Version:** 0.3.4 (April 2026)
 - **License:** [MIT](./LICENSE)
 - **Docs site:** https://aidanjmeyers.github.io/south-texas-aq-pipeline/
@@ -79,7 +81,7 @@ End-to-end runtime: **~20 minutes**. Outputs land under `data/` (parquet
 | **What does column X mean?** | [`pipeline/docs/03_data_schemas.md`](./pipeline/docs/03_data_schemas.md) |
 | **How are NAAQS values computed?** | [`pipeline/docs/05_methodology.md`](./pipeline/docs/05_methodology.md) |
 | **Are there known data quality issues?** | [`pipeline/docs/06_data_quality.md`](./pipeline/docs/06_data_quality.md) |
-| **How do I cite this in a paper?** | [`pipeline/docs/14_publication_protocol.md`](./pipeline/docs/14_publication_protocol.md) |
+| **How is it documented for publication?** | [`pipeline/docs/14_publication_protocol.md`](./pipeline/docs/14_publication_protocol.md) |
 | **Why did you make decision X?** | [`pipeline/docs/13_decisions.md`](./pipeline/docs/13_decisions.md) |
 
 ## Output summary
@@ -91,18 +93,10 @@ End-to-end runtime: **~20 minutes**. Outputs land under `data/` (parquet
 | NAAQS design values | `data/parquet/naaqs/` + `data/csv/naaqs_design_values.csv` | 764 | 9 metrics × 40 sites × 11 years |
 | Daily aggregates | `data/parquet/daily/` + `data/csv/daily_pollutant_means.csv` | 236,070 | With 75% completeness flag |
 | Combined AQ+weather | `data/parquet/combined/` + `data/csv/combined_aq_weather_daily.csv` | 236,070 | Haversine-paired |
-| Site registry | `data/csv/site_registry.csv` | 47 | 41 active + 3 reference + 2 pending + 1 dual-ID |
+| Site registry | `data/csv/site_registry.csv` | 47 | 42 active + 3 reference + 1 excluded + 1 disabled |
 | Postgres tables | `aq` schema (Neon) | — | Analysis-ready only |
-
-## Citation
-
-See [`pipeline/docs/CITATION.cff`](./pipeline/docs/CITATION.cff) for
-machine-readable citation metadata. Preferred citation text:
-
-> Wolf, A., and the Melaram Lab (2026). *South Texas Air Quality Data
-> Pipeline*, version 0.3.0. Melaram Lab, Texas A&M University–Corpus Christi.
 
 ## Contact
 
-Questions, bug reports, or collaborator requests: contact the Melaram Lab
-at Texas A&M University–Corpus Christi.
+Questions, bug reports, or collaborator requests: contact the
+[Melaram Lab](https://www.melaramlab.com) at Texas A&M University–Corpus Christi.

@@ -15,7 +15,9 @@ hide:
     **13 South Texas counties** over **2015–2025**.
 
     **Lab:** Melaram Lab, Texas A&M University–Corpus Christi
-    **Lead:** Aidan Wolf
+    **Principal Investigator:** Dr. Rajesh Melaram, TAMU-CC
+    **Lead Developer:** Aidan Meyers
+    **Collaborators:** Manassa Kuchavaram, L. Jin, Donald E. Warden
     **Contact:** [www.melaramlab.com](https://www.melaramlab.com)
     **License:** MIT
 
@@ -243,7 +245,7 @@ Already have the data downloaded? Pick your tool:
 
     ---
 
-    [Methods-section protocol](./14_publication_protocol.md) · [CITATION.cff](./CITATION.cff)
+    [Methods-section protocol](./14_publication_protocol.md)
 
 </div>
 

@@ -275,7 +275,7 @@ sqlalchemy==2.0.36
 psycopg[binary]==3.2.3
 ```
 
-Save these to `requirements-pinned.txt` and cite in the Methods section.
+Save these to `requirements-pinned.txt` and reference in the Methods section.
 
 ## Troubleshooting
 

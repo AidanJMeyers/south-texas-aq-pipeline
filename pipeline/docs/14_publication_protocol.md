@@ -1,8 +1,9 @@
 # 14 — Publication Protocol Summary
 
 Prose suitable for the Methods section of a manuscript describing the
-South Texas Air Quality data pipeline. Cite [05_methodology.md](./05_methodology.md)
-for detailed formulas and citations.
+South Texas Air Quality data pipeline. See
+[05_methodology.md](./05_methodology.md) for detailed formulas and
+regulatory references.
 
 ---
 
@@ -154,15 +155,24 @@ station are of limited representativeness and will be superseded by spatial
 interpolation in downstream work. A complete issue catalog appears in
 `pipeline/docs/06_data_quality.md`.
 
-## Suggested citation
+## Project team and authorship
 
-When referring to the pipeline in publications, cite:
+- **Principal Investigator:** Dr. Rajesh Melaram, Melaram Lab,
+  Texas A&M University–Corpus Christi
+- **Lead Developer:** Aidan Meyers, Melaram Lab, TAMU-CC
+- **Collaborators:** Manassa Kuchavaram (TAMU-CC), L. Jin, Donald E. Warden
 
-> Wolf, A., and the Melaram Lab (2026). *South Texas Air Quality Data
-> Pipeline*, version 0.3.0. Melaram Lab, Texas A&M University–Corpus Christi.
-> https://github.com/…/south-texas-aq-pipeline
+Source code repository:
+https://github.com/AidanJMeyers/south-texas-aq-pipeline
 
-See `pipeline/docs/CITATION.cff` for machine-readable citation metadata.
+## How to reference this pipeline
+
+When referring to this pipeline in publications or presentations, use:
+
+> Meyers, A., Kuchavaram, M., Jin, L., Warden, D. E., & Melaram, R. (2026).
+> *South Texas Air Quality Data Pipeline*, version 0.3.4. Melaram Lab,
+> Texas A&M University–Corpus Christi.
+> https://github.com/AidanJMeyers/south-texas-aq-pipeline
 
 ---
 
