@@ -2,6 +2,51 @@
 
 How to reproduce the pipeline outputs from scratch on a fresh machine.
 
+!!! success "Pipeline engineering: complete (April 22, 2026)"
+
+    The pipeline is built, validated end-to-end, deployed to Neon, and
+    documented. Engineering work is done — the team is now in the
+    **analysis phase** ([timeline →](./16_project_timeline.md)).
+
+    **What's in place:**
+
+    - 8 pipeline steps (validate → pollutant parquet → weather parquet →
+      NAAQS → daily aggregates → AQ+weather merge → CSV/RDS export →
+      Postgres load), all idempotent, all halt-on-error
+    - 7 Postgres tables in `aq` schema on Neon Launch plan (~2.3 GB)
+      including the full hourly resolution data
+    - Anonymous + authenticated Data API access via PostgREST + Neon Auth
+    - 17 documentation pages on the public docs site (this site)
+    - Self-contained 177 MB inputs bundle on OneDrive for collaborators
+    - Source on GitHub at `AidanJMeyers/south-texas-aq-pipeline`
+
+    **Future engineering work** is limited to a single planned data
+    refresh in **Week 1 of the analysis timeline (May 1, 2026)** to
+    ingest finalized 2025 EPA + TCEQ data. After that refresh, the
+    pipeline locks until manuscript submission.
+
+## Pipeline engineering history
+
+How the pipeline got built — for the Methods section and so future
+maintainers know what shipped when.
+
+| Version | Date | Engineering milestone |
+|---|---|---|
+| 0.1.0 | 2026-04-13 | Initial pipeline: 7 By_Pollutant CSVs → partitioned parquet store + NAAQS design value computation per 40 CFR Part 50 |
+| 0.2.0 | 2026-04-13 | PostgreSQL loader added (Neon free tier, daily-resolution tables only) |
+| 0.2.1 | 2026-04-14 | EPA/TCEQ ozone unit mismatch caught and fixed (TCEQ ppb → ppm normalization in step 01) |
+| 0.3.0 | 2026-04-14 | Publication-grade documentation suite (15 docs); 47-site registry with `data_status` tagging |
+| 0.3.1 | 2026-04-15 | Site registry corrections; Calaveras Lake (EPA) vs. Calaveras Lake Park (TCEQ) clarified as separate physical stations |
+| 0.3.2 | 2026-04-15 | Real Corpus Christi Palm VOCs raw data ingested (1 → 2 active VOC sites; +3.3M rows) |
+| 0.3.3 | 2026-04-15 | Calaveras Lake TCEQ feed filter added (drops 478k duplicate rows); Calaveras Lake Park officially excluded (TSP only — outside project scope) |
+| 0.3.4 | 2026-04-15 | MkDocs docs site with Material theme; auto-deployment to GitHub Pages via Actions; Mermaid pipeline schematic |
+| 0.3.5 | 2026-04-22 | Hourly tables (`pollutant_hourly`, `weather_hourly`) loaded to Neon Launch plan (~2.3 GB total); Data API enabled with `anonymous` + `authenticated` PostgREST roles; Neon Auth provisioned (Google OAuth + email/password) |
+
+The full per-version changelog is at
+`pipeline/CHANGELOG.md` in the repo.
+
+---
+
 ## Environment requirements
 
 | Component | Minimum | Tested |

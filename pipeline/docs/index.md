@@ -263,8 +263,9 @@ Already have the data downloaded? Pick your tool:
 
 | Version | Date | Summary |
 |---|---|---|
+| 0.3.5 | 2026-04-22 | Hourly tables loaded to Neon (~2.3 GB total); Data API + Neon Auth enabled; analysis timeline restructured |
 | 0.3.4 | 2026-04-15 | MkDocs site with GitHub Pages deployment + Melaram Lab branding |
-| 0.3.3 | 2026-04-15 | Calaveras Lake TCEQ feed filter, Calaveras Lake Park excluded (TSP-only) |
+| 0.3.3 | 2026-04-15 | Calaveras Lake TCEQ feed filter, Calaveras Lake Park officially retired (TSP-only) |
 | 0.3.2 | 2026-04-15 | CC Palm VOCs raw data ingested (1 → 2 active VOC sites) |
 | 0.3.1 | 2026-04-15 | Site registry correction, data provenance fixes |
 | 0.3.0 | 2026-04-14 | Initial publication-grade docs suite; 47-site registry with status tags |

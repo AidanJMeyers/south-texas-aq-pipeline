@@ -142,17 +142,15 @@ either path works for read queries. The authenticated path additionally
 gives you per-user audit logs, higher request quotas, and a clean upgrade
 path if you later add Row-Level Security or write-enabled tables.
 
-### Get your Data API URL
+### Live API endpoints for this project
 
-In the Neon console for `south-texas-aq` →
-**Settings → Data API → enable** (or check "Data API" tab if already
-enabled) → copy the **API URL**. It looks like:
+| Purpose | URL |
+|---|---|
+| **Data API (PostgREST)** | `https://ep-muddy-star-ant3mvxo.apirest.c-6.us-east-1.aws.neon.tech/neondb/rest/v1` |
+| **Auth (login / sign-up / JWT issuer)** | `https://ep-muddy-star-ant3mvxo.neonauth.c-6.us-east-1.aws.neon.tech/neondb/auth` |
+| **Direct Postgres** | (in Neon console → Connection Details — never put this in client-side code) |
 
-```
-https://app-ep-muddy-star-ant3mvxo.dpl.myneon.app
-```
-
-(your actual endpoint ID is `ep-muddy-star-ant3mvxo` for this project)
+Compute endpoint ID: `ep-muddy-star-ant3mvxo` · Region: AWS us-east-1 · Database: `neondb` · Schema: `aq`
 
 ### Anonymous mode — quick public queries
 
@@ -161,7 +159,7 @@ No headers needed. Any HTTP client can hit it:
 ```python
 import requests, pandas as pd
 
-API_URL = "https://app-ep-muddy-star-ant3mvxo.dpl.myneon.app"
+API_URL = "https://ep-muddy-star-ant3mvxo.apirest.c-6.us-east-1.aws.neon.tech/neondb/rest/v1"
 
 # Get all NAAQS exceedances for 2023 — PostgREST query syntax
 resp = requests.get(
@@ -192,21 +190,34 @@ authenticated users only later if needed.
 
 #### Step 1 — Sign up / sign in to Neon Auth
 
-This project's auth is configured with two providers (verified via the
-Neon MCP):
+This project's auth is configured with two providers:
 
-- **Google OAuth** (one-click sign-in)
+- **Google OAuth** (one-click sign-in — recommended for `@tamucc.edu` accounts)
 - **Email + password** (no email verification required, instant signup)
 
-The hosted login page lives at the project's auth endpoint. Get the URL
-from the Neon console → **Auth → Settings → Login URL**, or use the
-embedded sign-in page in the Neon dashboard.
+The hosted login page is at:
 
-For Melaram Lab members, the recommended workflow is:
+> **https://ep-muddy-star-ant3mvxo.neonauth.c-6.us-east-1.aws.neon.tech/neondb/auth**
 
-1. Go to the project login URL (visible on the docs site once added)
-2. Click "Sign in with Google" using your `@tamucc.edu` account
-3. The hosted page shows your JWT — copy it (good for ~24 hours)
+Open it, sign in via Google or create an email/password account, and the
+page returns a session JWT (good for ~24 hours by default).
+
+If you want to drive the auth flow programmatically — e.g. from a Colab
+notebook — use the same Auth URL with the Better Auth REST endpoints:
+
+```python
+import requests
+
+AUTH_URL = "https://ep-muddy-star-ant3mvxo.neonauth.c-6.us-east-1.aws.neon.tech/neondb/auth"
+
+# Email + password sign-in (returns a session containing a JWT)
+resp = requests.post(
+    f"{AUTH_URL}/sign-in/email",
+    json={"email": "you@tamucc.edu", "password": "your_password"},
+)
+session = resp.json()
+jwt = session["token"]   # use this in subsequent API requests
+```
 
 #### Step 2 — Use the JWT in Colab
 
@@ -214,7 +225,7 @@ For Melaram Lab members, the recommended workflow is:
 from google.colab import userdata
 import requests, pandas as pd
 
-API_URL = "https://app-ep-muddy-star-ant3mvxo.dpl.myneon.app"
+API_URL = "https://ep-muddy-star-ant3mvxo.apirest.c-6.us-east-1.aws.neon.tech/neondb/rest/v1"
 
 # Store the JWT as a Colab secret named AQ_NEON_JWT, then:
 JWT = userdata.get('AQ_NEON_JWT')
@@ -291,7 +302,7 @@ class NeonDataAPI:
 
 # Usage:
 api = NeonDataAPI(
-    base_url="https://app-ep-muddy-star-ant3mvxo.dpl.myneon.app",
+    base_url="https://ep-muddy-star-ant3mvxo.apirest.c-6.us-east-1.aws.neon.tech/neondb/rest/v1",
     jwt=userdata.get('AQ_NEON_JWT'),
 )
 

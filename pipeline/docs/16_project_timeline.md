@@ -5,7 +5,7 @@
 >
 > **Team:** Aidan Meyers (AM) · Manassa Kuchavaram (MK) · PI: Dr. Rajesh Melaram
 >
-> **Timeline:** April 21 – August 1, 2026 (~15 weeks)
+> **Timeline:** May 1 – August 1, 2026 (~13 weeks)
 >
 > **Tools:** Google Colab (primary) → Neon Postgres (SQL queries) → pipeline parquet store (local heavy lifting)
 
@@ -14,216 +14,314 @@
 ## Phase overview
 
 ```mermaid
+%%{init: {'theme':'base','themeVariables':{
+    'fontFamily':'Arial',
+    'fontSize':'14px',
+    'primaryColor':'#FFFFFF',
+    'primaryTextColor':'#213c4e',
+    'primaryBorderColor':'#213c4e',
+    'lineColor':'#6b7a85',
+    'sectionBkgColor':'#F5F7F9',
+    'taskBkgColor':'#345372',
+    'taskTextColor':'#FFFFFF',
+    'taskBorderColor':'#213c4e',
+    'gridColor':'#CCCCCC'
+}}}%%
 gantt
-    title South Texas AQ — Analysis Timeline
+    title South Texas AQ — Analysis Timeline (May 1 → Aug 1, 2026)
     dateFormat YYYY-MM-DD
     axisFormat %b %d
 
-    section Phase 1
-    Data cleaning & QC           :a1, 2026-04-21, 2w
-    Missing data assessment      :a2, 2026-04-21, 2w
+    section Phase 1 · Refresh & describe
+    Final EPA + TCEQ data refresh (2025 finalized) :crit, p1a, 2026-05-01, 1w
+    Descriptives + outlier flagging                :p1b, 2026-05-01, 1w
 
-    section Phase 2
-    Descriptive statistics       :b1, 2026-05-05, 2w
-    Temporal & spatial EDA       :b2, 2026-05-05, 2w
+    section Phase 2 · Imputation
+    Method evaluation                              :p2a, 2026-05-08, 1w
+    Apply imputation + sensitivity analysis        :p2b, 2026-05-15, 1w
 
-    section Phase 3
-    Statistical testing          :c1, 2026-05-19, 2w
-    Weather-pollutant analysis   :c2, 2026-05-19, 2w
+    section Phase 3 · Stat tests + correlations
+    Hypothesis tests (imputed + raw)               :p3a, 2026-05-22, 1w
+    Correlation analysis (imputed + raw)           :p3b, 2026-05-29, 1w
 
-    section Phase 4
-    Imputation & gap-filling     :d1, 2026-06-02, 2w
-    NAAQS deep dive              :d2, 2026-06-02, 2w
+    section Phase 4 · NAAQS + events
+    NAAQS 3-yr design values + EPA cross-check     :p4a, 2026-06-05, 1w
+    Functional event + disturbance annotation      :p4b, 2026-06-12, 1w
 
-    section Phase 5
-    Spatial interpolation        :e1, 2026-06-16, 2w
-    ML modeling (baseline)       :e2, 2026-06-16, 2w
+    section Phase 5 · Modeling + PCA
+    PCA + dimensionality reduction                 :p5a, 2026-06-19, 1w
+    ML modeling (RF, XGBoost, kriging)             :p5b, 2026-06-26, 2w
 
-    section Phase 6
-    Predictive model refinement  :f1, 2026-06-30, 2w
-    Model validation             :f2, 2026-06-30, 2w
-
-    section Phase 7
-    Publication figures          :g1, 2026-07-14, 2w
-    Tables + Methods prep        :g2, 2026-07-14, 2w
+    section Phase 6 · Validation + figures
+    Cross-validation + SHAP                        :p6a, 2026-07-10, 1w
+    Publication figures + tables                   :p6b, 2026-07-17, 2w
 
     section Milestone
-    Analysis complete            :milestone, 2026-08-01, 0d
+    Manuscript draft ready                         :milestone, 2026-08-01, 0d
 ```
+
+!!! tip "Click the Gantt chart to enlarge"
+
+    Mermaid diagrams in this docs site are SVG — zoom with browser
+    Ctrl+scroll, or right-click → "Open image in new tab" for a
+    full-screen view. The timeline is also mirrored in the
+    week-by-week sections below where every cell is searchable.
 
 ---
 
 ## Week-by-week deliverables
 
-### Week 1 — April 21–25: Data Cleaning & Quality Control (Part 1)
+Each week is collapsible. Click to expand. Use the status checkboxes
+in the tracker at the bottom to mark progress — edit the markdown
+directly on GitHub (`pipeline/docs/16_project_timeline.md`), commit,
+and the docs site rebuilds in ~2 minutes.
 
-| Task | Lead | Deliverable |
-|---|:---:|---|
-| Audit hourly completeness rates per site per year — identify sites with <50% coverage | **AM** | Completeness heatmap (site × year), saved as figure |
-| Flag and document measurement outliers (negative values, physically impossible concentrations) per pollutant group | **MK** | Outlier report CSV + summary table |
-| Verify ozone unit normalization is correct by spot-checking 5 TCEQ sites against raw files | **AM** | Verification log in notebook |
-| Document which sites have concurrent EPA + TCEQ observations (SO₂ value conflicts) — quantify agreement | **MK** | Conflict summary table |
+??? example "Week 1 — May 1–9 · Final data refresh + Descriptive statistics"
 
-### Week 2 — April 28 – May 2: Data Cleaning & Quality Control (Part 2)
+    !!! warning "This week is the hard data freeze"
 
-| Task | Lead | Deliverable |
-|---|:---:|---|
-| Build and run automated QC flags: negative values, spike detection (>3σ from rolling mean), stuck sensors (zero-variance runs >24h) | **AM** | QC-flagged parquet or CSV with a `qc_flag` column |
-| Assess wind data quality — check for stuck wind directions, calm-wind thresholds, anemometer failures | **MK** | Wind QC summary per station |
-| Produce a master data availability matrix: pollutant × site × year → % valid hours | **AM** | Publication-quality figure |
-| Document all QC decisions and exclusion criteria for the Methods section | **MK** | Methods paragraph draft (QC subsection) |
+        Pull the **final** EPA AQS Data Mart and TCEQ TAMIS extracts
+        for 2025-complete. After this week, no new raw data enters
+        the pipeline before manuscript submission. Every analysis from
+        Phase 2 onward locks against the v0.3.5 data tranche.
 
-### Week 3 — May 5–9: Descriptive Statistics
+    | Task | Lead | Deliverable |
+    |---|:---:|---|
+    | Pull EPA AQS Data Mart 2025-complete (all 13 counties, all parameters) and stage under `!Final Raw Data/EPA AQS Downloads/` | **AM** | Refreshed master CSV + commit reference |
+    | Pull TCEQ TAMIS 2025-complete extracts for the 14 TCEQ sites | **AM** | Refreshed `*.txt` files in `!Final Raw Data/TCEQ Data - Missing Sites/` |
+    | Re-run upstream reorg scripts to refresh `By_Pollutant/*.csv` | **AM** | Updated merged CSVs |
+    | Re-run `pipeline/run_pipeline.py` end-to-end (~30 min) | **AM** | Updated parquet store + Postgres |
+    | Compute per-pollutant summary statistics (mean, median, P5, P25, P75, P95, max, σ) by county and year | **MK** | Summary statistics table (publication-ready) |
+    | Generate box/violin plots of pollutant distributions by county, season, and year | **MK** | 6–8 publication-quality figures |
+    | Compute diurnal profiles (mean hourly concentration by hour-of-day) for O₃, NO₂, PM₂.₅ at 5 highest-loaded sites | **AM** | Diurnal profile plots |
+    | Outlier detection + flagging (negative values, physically impossible spikes, zero-variance runs >24 h) | **MK** | Outlier report CSV + `qc_flag` column proposal |
+    | Audit hourly completeness rates per site per year — completeness heatmap (site × year) | **AM** | Completeness heatmap figure |
+    | Initial week 1 report posted to dashboard repo | **AM + MK** | First entry in week-by-week reports site |
 
-| Task | Lead | Deliverable |
-|---|:---:|---|
-| Compute per-pollutant summary statistics (mean, median, P5, P25, P75, P95, max, σ) by county and year | **AM** | Summary statistics table (all pollutants, publication-ready) |
-| Generate box/violin plots of pollutant distributions by county, season, and year | **MK** | 6–8 publication-quality figures |
-| Compute diurnal profiles (mean hourly concentration by hour-of-day) for O₃, NO₂, PM₂.₅ at the 5 highest-traffic sites | **AM** | Diurnal profile plots |
-| Rank sites by annual mean concentration for each pollutant — identify hotspots | **MK** | Ranked site table per pollutant |
+??? example "Week 2 — May 12–16 · Imputation method evaluation"
 
-### Week 4 — May 12–16: Temporal Trend Analysis
+    Imputation is **required** for many of the temporal models and
+    analyses in later weeks. We evaluate methods this week, then
+    commit to one in Week 3.
 
-| Task | Lead | Deliverable |
-|---|:---:|---|
-| Time series plots of monthly mean concentration (2015–2025) for each pollutant at each county | **AM** | Multi-panel time series figures |
-| Seasonal decomposition (STL or similar) for O₃ and PM₂.₅ at Bexar, Nueces, Cameron | **MK** | Decomposition plots (trend + seasonal + residual) |
-| Year-over-year NAAQS design value trend at all ozone sites — does the trend support or contradict nonattainment trajectory? | **AM** | Trend figure + interpretive paragraph |
-| Identify and document episodic events (wildfire smoke, Saharan dust, industrial incidents) visible in the daily data | **MK** | Episode catalog table (date, county, pollutant, magnitude, probable cause) |
+    | Task | Lead | Deliverable |
+    |---|:---:|---|
+    | Build a held-out evaluation set: artificially mask 10% of observed values across pollutants/sites/seasons | **AM** | Held-out mask + ground truth |
+    | Evaluate linear interpolation (baseline for short gaps ≤6 h) | **MK** | MAE, RMSE per pollutant |
+    | Evaluate seasonal LOCF (last observation carried forward, season-aware) | **MK** | MAE, RMSE per pollutant |
+    | Evaluate kNN-based imputation (using site neighbors + weather) | **AM** | MAE, RMSE per pollutant |
+    | Evaluate multiple imputation by chained equations (MICE, `miceforest` package) | **AM** | MAE, RMSE per pollutant |
+    | Pick the winner per gap-length bucket (≤6 h, 6–24 h, 24–48 h, >48 h) and document rationale | **MK** | Methods paragraph draft (imputation subsection) |
+    | Week 2 dashboard report | **AM + MK** | Posted to dashboard repo |
 
-### Week 5 — May 19–23: Spatial Pattern Analysis
+??? example "Week 3 — May 19–23 · Apply imputation + sensitivity analysis"
 
-| Task | Lead | Deliverable |
-|---|:---:|---|
-| Site-level maps of annual-mean pollutant concentrations (scatter on lat/lon) for 2020–2024 | **AM** | Spatial maps per pollutant per year |
-| Compute inter-site correlations (Pearson/Spearman) for O₃ and PM₂.₅ — how well do nearby sites agree? | **MK** | Correlation matrix heatmap |
-| Urban-rural gradient analysis: compare Bexar (urban) vs. Atascosa/Karnes/Wilson (rural) for NO₂ and CO | **AM** | Gradient comparison figure + significance test results |
-| Coastal vs. inland PM₂.₅ comparison (Nueces/Cameron vs. Bexar/Comal) | **MK** | Comparison box plots + Mann-Whitney U test results |
+    | Task | Lead | Deliverable |
+    |---|:---:|---|
+    | Apply chosen imputation methods to gaps ≤48 h across all pollutants and weather | **AM** | Imputed parquet store with `imputed` flag column |
+    | Apply chosen weather imputation for missing meteorological values | **MK** | Imputed weather parquet |
+    | Re-compute daily aggregates and NAAQS values from the imputed dataset | **AM** | Imputed `pollutant_daily` + `naaqs_design_values` (separate Postgres tables, e.g. `aq.pollutant_daily_imputed`) |
+    | Sensitivity analysis: how much do annual means + NAAQS design values change after imputation vs. raw NA-dropped? | **MK** | Before/after comparison table + figure |
+    | Document imputation approach for Methods section, including gap-length thresholds | **MK** | Methods paragraph (final) |
+    | Week 3 dashboard report | **AM + MK** | Posted |
 
-### Week 6 — May 26–30: Weather–Pollutant Relationships
+??? example "Week 4 — May 26–30 · Statistical hypothesis testing"
 
-| Task | Lead | Deliverable |
-|---|:---:|---|
-| Correlation analysis: daily pollutant means vs. daily weather variables (temp, humidity, wind speed, pressure, GHI) | **AM** | Correlation matrix figures per pollutant group |
-| Conditional distributions: ozone on hot days (>35°C) vs. cool days (<25°C); PM₂.₅ on high-humidity vs. low-humidity days | **MK** | Conditional density plots |
-| Wind-direction analysis: pollutant concentration roses for Bexar and Nueces industrial sites | **AM** | Pollution-rose figures |
-| Rainfall washout effect: PM₂.₅ before/after rain events | **MK** | Before/after comparison table + figure |
+    Run all tests **twice**: once on the raw NA-dropped data, once on
+    the imputed data. Differences between the two are themselves
+    informative (often noted in Results / Discussion).
 
-### Week 7 — June 2–6: Statistical Hypothesis Testing
+    | Task | Lead | Deliverable |
+    |---|:---:|---|
+    | Mann-Kendall trend tests + Sen's slope estimator for annual O₃, PM₂.₅, NO₂ at each active site (raw + imputed) | **AM** | Slopes + p-values per site-pollutant pair (paired tables) |
+    | Kruskal-Wallis / Dunn's post-hoc for seasonal differences in each pollutant at each county (raw + imputed) | **MK** | Seasonal significance tables (paired) |
+    | Paired weekday vs. weekend comparison for NO₂ and CO (traffic signal); Wilcoxon test | **AM** | Weekday/weekend comparison figure + test results |
+    | PM₂.₅ annual means vs. revised 9.0 µg/m³ NAAQS — formal exceedance test with confidence intervals (raw + imputed) | **MK** | Exceedance table |
+    | Week 4 dashboard report | **AM + MK** | Posted |
 
-| Task | Lead | Deliverable |
-|---|:---:|---|
-| Mann-Kendall trend tests + Sen's slope estimator for annual O₃, PM₂.₅, NO₂ at each site | **AM** | Table of slopes + p-values per site-pollutant pair |
-| Kruskal-Wallis / Dunn's post-hoc for seasonal differences in each pollutant at each county | **MK** | Seasonal significance table |
-| Paired comparison of weekday vs. weekend concentrations for NO₂ and CO (traffic signal) | **AM** | Weekday/weekend comparison figure + Wilcoxon test |
-| Test PM₂.₅ annual means against the revised 9.0 µg/m³ NAAQS — which site-years formally exceed? | **MK** | Exceedance table with confidence intervals |
+??? example "Week 5 — June 2–6 · Correlation analysis"
 
-### Week 8 — June 9–13: Imputation & Gap-Filling
+    | Task | Lead | Deliverable |
+    |---|:---:|---|
+    | Inter-pollutant correlations within each county (Pearson + Spearman, raw + imputed) | **AM** | Correlation matrix heatmaps |
+    | Pollutant-weather correlations (daily means vs. temp, humidity, wind, GHI, pressure) — raw + imputed | **MK** | Correlation matrix figures per pollutant group |
+    | Inter-site correlations for O₃ and PM₂.₅ — how well do nearby sites agree? | **AM** | Inter-site correlation matrix |
+    | Lagged correlation analysis: does today's weather predict tomorrow's pollutant level? | **MK** | Lagged correlation tables + figure |
+    | Document statistical/correlational findings for Methods + Results | **AM + MK** | ~500-word Methods paragraph + Results outline |
+    | Week 5 dashboard report | **AM + MK** | Posted |
 
-| Task | Lead | Deliverable |
-|---|:---:|---|
-| Evaluate imputation strategies for missing hourly data: linear interpolation, seasonal LOCF, kNN-based, multiple imputation | **AM** | Comparative imputation performance table (MAE, RMSE on held-out 10% of observed data) |
-| Implement chosen imputation method and apply to gaps ≤48 hours across all pollutants | **MK** | Imputed dataset (parquet) with `imputed` flag column |
-| Sensitivity analysis: do NAAQS design values change after imputation vs. raw (NA-dropped)? | **AM** | Before/after NAAQS comparison table |
-| Document imputation approach for Methods section — justify choice of method + gap threshold | **MK** | Methods paragraph draft (imputation subsection) |
+??? example "Week 6 — June 9–13 · NAAQS deep dive + 3-year design values"
 
-### Week 9 — June 16–20: NAAQS Compliance Deep Dive
+    | Task | Lead | Deliverable |
+    |---|:---:|---|
+    | Compute 3-year rolling design values (formal NAAQS compliance metric) for O₃ and PM₂.₅ | **AM** | 3-year design value tables + trend figures |
+    | Compare our computed design values against EPA's published values; quantify agreement per site | **MK** | Cross-validation table with % difference |
+    | Identify all sites in formal nonattainment (3-yr O₃ > 0.070 ppm, 3-yr PM₂.₅ > 9.0 µg/m³) for any year | **AM** | Nonattainment-site catalog |
+    | Time series plots of 3-year rolling NAAQS values (2017–2025) per site | **MK** | Multi-panel time series |
+    | Week 6 dashboard report | **AM + MK** | Posted |
 
-| Task | Lead | Deliverable |
-|---|:---:|---|
-| Compute 3-year rolling design values (the formal NAAQS compliance metric) for O₃ and PM₂.₅ across all applicable sites | **AM** | 3-year design value table + trend figure |
-| Compare our computed design values against EPA's published values (https://www.epa.gov/air-trends/air-quality-design-values) — quantify agreement | **MK** | Cross-validation table with % difference per site |
-| Exceedance-day analysis: for each O₃ exceedance day, what were the weather conditions? Build a "typical exceedance day" profile | **AM** | Exceedance-day weather profile table + figure |
-| Draft the NAAQS results narrative for the manuscript Results section | **MK** | ~500-word draft |
+??? example "Week 7 — June 16–20 · Functional event & disturbance annotation"
 
-### Week 10 — June 23–27: Spatial Interpolation (Kriging / IDW)
+    For every confirmed exceedance day or unusually high pollutant
+    episode, annotate the probable cause: wildfire smoke, Saharan
+    dust intrusion, industrial event, refinery flare, port activity,
+    holiday-related (e.g. fireworks PM₂.₅), etc.
 
-| Task | Lead | Deliverable |
-|---|:---:|---|
-| Implement ordinary kriging for annual-mean O₃ across the 13-county study area using the `pykrige` library | **AM** | Kriged surface map (O₃ annual mean, 2023) |
-| Implement IDW (inverse distance weighting) as a comparison baseline | **MK** | IDW surface map (same parameter/year) |
-| Cross-validation: leave-one-out for both kriging and IDW — which has lower prediction error? | **AM** | LOO-CV error table |
-| Repeat for PM₂.₅ annual mean; assess whether the sparser PM₂.₅ network limits interpolation quality | **MK** | PM₂.₅ kriged surface + error analysis |
+    | Task | Lead | Deliverable |
+    |---|:---:|---|
+    | Build a candidate-events list: every site-day where any pollutant exceeded its NAAQS or local 95th percentile | **AM** | Candidate events table (CSV) |
+    | Cross-reference with NIFC wildfire database, NOAA Saharan dust forecasts, TCEQ industrial incident reports | **MK** | Annotated events catalog with probable cause column |
+    | Build a "typical exceedance day" weather profile (temp, wind, mixing height) by event type | **AM** | Profile table + figure |
+    | Document the events catalog as a supplementary table for the manuscript | **MK** | Final supplementary table draft |
+    | Week 7 dashboard report | **AM + MK** | Posted |
 
-### Week 11 — June 30 – July 4: Machine Learning Baseline Models
+??? example "Week 8 — June 23–27 · PCA + dimensionality reduction"
 
-| Task | Lead | Deliverable |
-|---|:---:|---|
-| Feature engineering: build a daily modeling dataset with pollutant targets + weather predictors + calendar features (DOW, month, holiday, season) | **AM** | Feature-engineered DataFrame saved to parquet |
-| Train Random Forest regressors for daily O₃ and PM₂.₅ prediction at each site, using weather as input | **MK** | RF model performance table (R², RMSE, MAE per site) |
-| Feature importance analysis: which weather variables dominate pollutant prediction? | **AM** | Feature importance bar charts per pollutant |
-| Train XGBoost as a second model family for the same targets — compare to RF | **MK** | Model comparison table (RF vs. XGBoost) |
+    | Task | Lead | Deliverable |
+    |---|:---:|---|
+    | PCA across the daily pollutant + weather feature space — how many components explain 80%/95% of variance? | **AM** | Scree plot + variance-explained figure |
+    | Identify pollutant groupings via the loading matrix (which pollutants co-vary?) | **MK** | Loading-matrix heatmap |
+    | Site-level PCA biplot — cluster sites by pollutant signature | **AM** | Biplot figure with site labels |
+    | Optional: NMF or t-SNE for non-linear comparison | **MK** | Comparison figure if results warrant |
+    | Week 8 dashboard report | **AM + MK** | Posted |
 
-### Week 12 — July 7–11: Model Refinement & Validation
+??? example "Week 9 — June 30 – July 4 · ML modeling part 1 (Random Forest + XGBoost)"
 
-| Task | Lead | Deliverable |
-|---|:---:|---|
-| Spatial cross-validation: train on N-1 sites, predict the held-out site — assess transferability | **AM** | Spatial-CV error table per site |
-| Temporal cross-validation: train on 2015–2022, predict 2023–2024 — assess forecast skill | **MK** | Temporal-CV forecast error plots |
-| Hyperparameter tuning (grid search or Optuna) for the best-performing model | **AM** | Tuned model parameters + improvement over baseline |
-| SHAP analysis for model interpretability — which features drive high vs. low predictions? | **MK** | SHAP summary plots per pollutant |
+    | Task | Lead | Deliverable |
+    |---|:---:|---|
+    | Feature engineering: build a daily modeling dataset (pollutant targets + weather + calendar features) | **AM** | Feature parquet |
+    | Train Random Forest regressors for daily O₃ and PM₂.₅ at each site | **MK** | RF performance table (R², RMSE, MAE per site) |
+    | Train XGBoost on the same targets; compare to RF | **AM** | Model comparison table |
+    | Feature importance analysis (RF + XGBoost) — which weather variables dominate? | **MK** | Importance bar charts per pollutant |
+    | Week 9 dashboard report | **AM + MK** | Posted |
 
-### Week 13 — July 14–18: Publication Figures (Part 1)
+??? example "Week 10 — July 7–11 · ML modeling part 2 (kriging + spatial interpolation)"
 
-| Task | Lead | Deliverable |
-|---|:---:|---|
-| Finalize all time series and trend figures to publication standard (consistent fonts, colors, axes, captions) | **AM** | Figures 1–4 (trends, seasonality, diurnal profiles) |
-| Finalize all spatial maps to publication standard (basemaps, scale bars, north arrows, legends) | **MK** | Figures 5–7 (site maps, kriged surfaces, prediction maps) |
-| Build a comprehensive NAAQS summary figure (heatmap: site × year, color = % of standard) | **AM** | Figure 8 (NAAQS heatmap) |
-| Build a weather-driven analysis figure (multi-panel: correlation matrix + conditional densities + wind roses) | **MK** | Figure 9 (weather–pollutant relationships) |
+    | Task | Lead | Deliverable |
+    |---|:---:|---|
+    | Implement ordinary kriging for annual O₃ across the 13-county area (`pykrige`) | **AM** | Kriged surface map |
+    | Implement IDW as comparison baseline | **MK** | IDW surface map |
+    | Cross-validation: leave-one-out for both methods — which has lower error? | **AM** | LOO-CV error table |
+    | Repeat for PM₂.₅ — assess whether sparser PM₂.₅ network limits interpolation quality | **MK** | PM₂.₅ kriged surface + error analysis |
+    | Week 10 dashboard report | **AM + MK** | Posted |
 
-### Week 14 — July 21–25: Publication Figures (Part 2) + Tables
+??? example "Week 11 — July 14–18 · Model validation"
 
-| Task | Lead | Deliverable |
-|---|:---:|---|
-| Build final model performance comparison figure (bar chart: R², RMSE across model types and pollutants) | **AM** | Figure 10 (model comparison) |
-| Build SHAP / feature importance composite figure | **MK** | Figure 11 (model interpretability) |
-| Compile Table 1: Study area characteristics (counties, sites, date coverage, populations) | **AM** | Table 1 LaTeX/Word |
-| Compile Table 2: Summary statistics by pollutant and county | **MK** | Table 2 LaTeX/Word |
-| Compile Table 3: NAAQS design values + exceedance summary | **AM** | Table 3 LaTeX/Word |
-| Compile Table 4: Model performance summary | **MK** | Table 4 LaTeX/Word |
+    | Task | Lead | Deliverable |
+    |---|:---:|---|
+    | Spatial cross-validation: train on N-1 sites, predict the held-out one — assess transferability | **AM** | Spatial CV error table |
+    | Temporal cross-validation: train on 2015–2022, predict 2023–2024 — assess forecast skill | **MK** | Temporal CV forecast plots |
+    | Hyperparameter tuning (Optuna) for the best-performing model family | **AM** | Tuned params + improvement over baseline |
+    | SHAP analysis for model interpretability | **MK** | SHAP summary plots per pollutant |
+    | Week 11 dashboard report | **AM + MK** | Posted |
 
-### Week 15 — July 28 – August 1: Methods Finalization & Handoff
+??? example "Week 12 — July 21–25 · Publication figures part 1"
 
-| Task | Lead | Deliverable |
-|---|:---:|---|
-| Assemble complete Methods section from weekly paragraph drafts | **AM** | Methods section final draft |
-| Assemble complete Results section outline with figure/table references | **MK** | Results section outline |
-| Final QC pass on all figures — consistent formatting, correct units, no rendering artifacts | **AM** | Verified figure set (PNG + PDF) |
-| Final QC pass on all tables — cross-check numbers against pipeline outputs | **MK** | Verified table set |
-| Package all analysis notebooks into a reproducible Colab collection | **AM + MK** | Shared Colab folder with numbered notebooks |
+    | Task | Lead | Deliverable |
+    |---|:---:|---|
+    | Finalize all time series + trend figures (consistent fonts, colors, axes, captions) | **AM** | Figures 1–4 |
+    | Finalize all spatial maps (basemaps, scale bars, north arrows, legends) | **MK** | Figures 5–7 |
+    | NAAQS summary heatmap (site × year, color = % of standard) | **AM** | Figure 8 |
+    | Weather-driven analysis composite figure | **MK** | Figure 9 |
+    | Week 12 dashboard report | **AM + MK** | Posted |
+
+??? example "Week 13 — July 28 – August 1 · Publication figures part 2 + Methods finalization"
+
+    | Task | Lead | Deliverable |
+    |---|:---:|---|
+    | Model performance comparison figure (bar chart: R², RMSE across model types and pollutants) | **AM** | Figure 10 |
+    | SHAP / feature importance composite | **MK** | Figure 11 |
+    | Compile Tables 1–4 (study area, summary stats, NAAQS exceedance, model performance) | **AM + MK** | LaTeX/Word tables |
+    | Assemble complete Methods section from weekly drafts | **AM** | Methods final |
+    | Assemble Results section outline with figure/table refs | **MK** | Results outline |
+    | Final QC pass on all figures + tables | **AM + MK** | Verified set |
+    | Final week 13 dashboard report + handoff checklist | **AM + MK** | Posted |
 
 !!! success "Milestone: August 1, 2026 — Analysis Complete"
 
-    All figures, tables, and Methods/Results drafts ready for manuscript
-    assembly. The writing phase begins.
+    All figures, tables, and Methods/Results drafts ready for
+    manuscript assembly. Writing phase begins.
 
 ---
 
-## Task status tracker
+## Live status tracker
 
-Use this table to track completion. Update directly in this markdown
-file (edit on GitHub or locally) — the docs site will rebuild on push.
+Edit this table directly on GitHub (`pipeline/docs/16_project_timeline.md`)
+to keep the dashboard current. Push any commit and the docs site rebuilds
+within 2 minutes.
 
-| Week | Dates | AM status | MK status | Notes |
-|:---:|---|:---:|:---:|---|
-| 1 | Apr 21–25 | ⬜ | ⬜ | |
-| 2 | Apr 28–May 2 | ⬜ | ⬜ | |
-| 3 | May 5–9 | ⬜ | ⬜ | |
-| 4 | May 12–16 | ⬜ | ⬜ | |
-| 5 | May 19–23 | ⬜ | ⬜ | |
-| 6 | May 26–30 | ⬜ | ⬜ | |
-| 7 | Jun 2–6 | ⬜ | ⬜ | |
-| 8 | Jun 9–13 | ⬜ | ⬜ | |
-| 9 | Jun 16–20 | ⬜ | ⬜ | |
-| 10 | Jun 23–27 | ⬜ | ⬜ | |
-| 11 | Jun 30–Jul 4 | ⬜ | ⬜ | |
-| 12 | Jul 7–11 | ⬜ | ⬜ | |
-| 13 | Jul 14–18 | ⬜ | ⬜ | |
-| 14 | Jul 21–25 | ⬜ | ⬜ | |
-| 15 | Jul 28–Aug 1 | ⬜ | ⬜ | |
+| Phase | Week | Dates | AM | MK | Notes |
+|:---:|:---:|---|:---:|:---:|---|
+| 1 | 1 | May 1–9 | ⬜ | ⬜ | Hard data freeze week |
+| 2 | 2 | May 12–16 | ⬜ | ⬜ | Imputation eval |
+| 2 | 3 | May 19–23 | ⬜ | ⬜ | Imputation apply |
+| 3 | 4 | May 26–30 | ⬜ | ⬜ | Hypothesis tests (raw + imputed) |
+| 3 | 5 | June 2–6 | ⬜ | ⬜ | Correlations |
+| 4 | 6 | June 9–13 | ⬜ | ⬜ | 3-yr NAAQS design values |
+| 4 | 7 | June 16–20 | ⬜ | ⬜ | Event annotation |
+| 5 | 8 | June 23–27 | ⬜ | ⬜ | PCA |
+| 5 | 9 | June 30–July 4 | ⬜ | ⬜ | RF + XGBoost |
+| 5 | 10 | July 7–11 | ⬜ | ⬜ | Kriging + IDW |
+| 6 | 11 | July 14–18 | ⬜ | ⬜ | CV + SHAP |
+| 6 | 12 | July 21–25 | ⬜ | ⬜ | Figures part 1 |
+| 6 | 13 | July 28–Aug 1 | ⬜ | ⬜ | Figures part 2 + Methods |
 
 **Legend:** ⬜ Not started · 🟡 In progress · ✅ Complete · ❌ Blocked
+
+---
+
+## Weekly report dashboard (separate repository)
+
+Every week, Aidan + Manassa post a structured report to a dedicated
+results-and-reports repository:
+
+> **Repo (planned):** `https://github.com/AidanJMeyers/south-texas-aq-results`
+> **Site:** `https://aidanjmeyers.github.io/south-texas-aq-results/`
+> *(to be created when Week 1 reports are ready)*
+
+### Format for each weekly report
+
+Each `week-NN-MM-DD.md` file in that repo follows this structure:
+
+```markdown
+# Week N — <date range> · <phase name>
+
+## What we did
+- Bullet list of completed tasks (cross-reference timeline doc 16)
+
+## Key results
+- Headline figures, tables, statistics
+
+## Code blocks
+- The actual SQL / Python that produced the results
+- Links to the Colab notebook(s) that ran them
+
+## Decisions made / assumptions
+- Anything that locks future work (e.g. "We chose MICE for imputation
+  because X, Y, Z; this means the modeling phase assumes...")
+
+## Open questions / blockers
+- For PI review
+
+## Next week preview
+```
+
+### Why a separate repo?
+
+- Keeps **pipeline code** clean and stable in this repo (publish once)
+- **Reports change rapidly** week-to-week — separate change history
+- Reports site can be **public** without exposing the pipeline's
+  evolution; pipeline site can stay focused on protocol documentation
+- Both rebuild via the same MkDocs + GitHub Pages flow
+- Site members navigate between them via cross-links
+
+### Future: GIS dashboard
+
+Once weekly reports are flowing (after ~Week 4), Aidan will spin up a
+third repo for an interactive GIS dashboard — kriged surface maps, site
+markers with hover-to-query pollutant time series, exceedance overlays,
+etc. Likely tech: Leaflet + a small Python/Flask backend pulling from
+the Neon authenticated Data API.
 
 ---
 
@@ -231,44 +329,50 @@ file (edit on GitHub or locally) — the docs site will rebuild on push.
 
 The split above alternates tasks so that:
 
-1. **Both AM and MK touch every analytical domain** (no single points
-   of failure — if one person is unavailable, the other has context).
-2. **AM leans toward infrastructure-heavy tasks** (pipeline QC, feature
-   engineering, kriging implementation, figure finalization) given his
-   role as lead pipeline developer.
-3. **MK leans toward statistical/interpretive tasks** (outlier reports,
-   significance testing, model comparison, narrative drafting) to
-   build manuscript-ready outputs directly.
-4. **Modeling work is explicitly shared** (AM: RF + kriging, MK: XGBoost
-   + IDW + SHAP) so both contribute to the ML story.
+1. **Both AM and MK touch every analytical domain** — no single
+   points of failure. If one is unavailable, the other has context.
+2. **AM leans toward infrastructure-heavy tasks** (data refresh,
+   feature engineering, kriging, figure finalization, ML training)
+   given his role as lead pipeline developer.
+3. **MK leans toward statistical/interpretive tasks** (outlier
+   reports, significance testing, model comparison, narrative
+   drafting, event annotation) to build manuscript-ready outputs
+   directly.
+4. **Modeling work is explicitly shared** so both contribute to the
+   ML story.
 
-If the balance needs adjusting (e.g., one person has coursework
-obligations in June), swap tasks within a week — the deliverables
-stay the same, just the lead changes.
+If the balance needs adjusting (e.g. coursework obligations in June),
+swap tasks within a week — deliverables stay the same, only the lead
+changes.
 
 ---
 
-## Dependencies between phases
+## Phase dependency diagram
 
 ```mermaid
 %%{init: {'theme':'base','themeVariables':{'fontFamily':'Arial'}}}%%
 flowchart LR
     classDef phase fill:#FFFFFF,stroke:#213c4e,stroke-width:2px,color:#213c4e,font-weight:600
+    classDef hard  fill:#FDEBD3,stroke:#c2410c,stroke-width:2.5px,color:#7c2d0b,font-weight:700
+    classDef done  fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,color:#1b5e20,font-weight:600
 
-    P1["Weeks 1–2<br/>Data Cleaning"]
-    P2["Weeks 3–4<br/>Descriptive & Temporal"]
-    P3["Weeks 5–6<br/>Spatial & Weather"]
-    P4["Weeks 7–8<br/>Testing & Imputation"]
-    P5["Weeks 9–10<br/>NAAQS & Kriging"]
-    P6["Weeks 11–12<br/>ML Modeling"]
-    P7["Weeks 13–15<br/>Figures & Tables"]
+    P0["Pipeline engineering<br/>(complete)"]
+    P1["Week 1<br/>Refresh + Descriptives"]
+    P2["Weeks 2–3<br/>Imputation"]
+    P3["Weeks 4–5<br/>Tests + Correlations"]
+    P4["Weeks 6–7<br/>NAAQS + Events"]
+    P5["Weeks 8–10<br/>PCA + ML + Kriging"]
+    P6["Weeks 11–13<br/>Validation + Figures"]
+    DONE["Aug 1<br/>Manuscript-ready"]
 
-    P1 --> P2 --> P3 --> P4 --> P5 --> P6 --> P7
+    P0 --> P1 --> P2 --> P3 --> P4 --> P5 --> P6 --> DONE
 
-    class P1,P2,P3,P4,P5,P6,P7 phase
+    class P0 done
+    class P1 hard
+    class P2,P3,P4,P5,P6 phase
+    class DONE done
 ```
 
 Each phase depends on the previous one's outputs. If a phase runs
-ahead of schedule, start pulling tasks from the next phase. If a
-phase falls behind, flag it in the status tracker and discuss
-rebalancing with PI.
+ahead, start pulling tasks from the next. If a phase falls behind,
+flag it in the status tracker and discuss rebalancing with the PI.

@@ -176,7 +176,8 @@ appear in one network. Dropping the TCEQ feed gives us a consistent
 "one authoritative source per site" rule.
 
 **Also verified:** The separate physical TCEQ station at Calaveras Lake
-Park (AQSID `480291609`) measures only Total Suspended Particulate (TSP),
+Park (AQSID `480291609`) is **officially retired from this project**.
+It measures only Total Suspended Particulate (TSP),
 which is outside the project's pollutant scope. It is tracked in the
 registry as `excluded`, with `data_status='excluded'` and a clarifying
 note. See the overall reconciliation in issue #9.

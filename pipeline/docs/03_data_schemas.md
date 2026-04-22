@@ -221,7 +221,7 @@ every pipeline run.
 |---:|---|---|
 | **42** | `active` | Has measurement data in the pipeline |
 | **3** | `reference` | CPS Energy fence-line monitors (Gardner Rd, Gate 9A, Gate 58) |
-| **1** | `excluded` | Calaveras Lake Park (480291609) — TCEQ monitor, TSP-only (outside project scope) |
+| **1** | `excluded` | Calaveras Lake Park (480291609) — TCEQ monitor, **officially retired from analysis**: measures only Total Suspended Particulate (TSP), which is outside the project's pollutant scope |
 | **1** | `disabled` | Williams Park (483551024) — confirmed disabled in inventory |
 
 **Note on Calaveras:** `480290059` (Calaveras Lake, EPA-operated, active)

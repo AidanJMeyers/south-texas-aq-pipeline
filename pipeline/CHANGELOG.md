@@ -2,6 +2,68 @@
 
 All notable changes to the South Texas AQ data pipeline are documented here.
 
+## [0.3.5] — 2026-04-22
+
+### Added (database)
+
+- **Full hourly resolution tables loaded to Neon** (Launch plan, 10 GB
+  storage):
+  * `aq.pollutant_hourly` — 7,699,105 rows, 1.4 GB, 42 sites, 2015–2025
+  * `aq.weather_hourly` — 1,470,049 rows, 631 MB, 15 stations, 2014–2025
+  * Indexed on `(aqsid, date_local, pollutant_group, year)` and
+    `(location, year, date_local)` respectively
+- **Neon Data API enabled** with PostgREST roles:
+  * `anonymous` — public reads, rate-limited (no auth)
+  * `authenticated` — JWT-gated reads, audited, higher rate limits
+  * Both granted `SELECT` on every `aq.*` table; default privilege
+    rule ensures future tables inherit
+- **Neon Auth provisioned** with Google OAuth + email/password (no
+  email verification required)
+- **Live API endpoints** documented in `pipeline/docs/17_colab_database_guide.md`:
+  * Data API: `https://ep-muddy-star-ant3mvxo.apirest.c-6.us-east-1.aws.neon.tech/neondb/rest/v1`
+  * Auth: `https://ep-muddy-star-ant3mvxo.neonauth.c-6.us-east-1.aws.neon.tech/neondb/auth`
+
+### Added (docs / pipeline)
+
+- New `parquet_dir` source type in `step_07_load_postgres.py` for
+  loading partitioned Hive parquet directories into Postgres
+- `OUT_OF_SCOPE_FILTERS` mechanism in `step_01_build_pollutant_store.py`
+  for documenting + filtering pollutant rows outside project scope
+- Doc 16 (project timeline) **restructured** with new analysis flow:
+  Refresh → Descriptives → Imputation → Stats + Correlations →
+  NAAQS Deep Dive + Event Annotation → PCA + ML + Kriging →
+  Validation + Figures (May 1 → Aug 1, 13 weeks)
+- Doc 16 now uses **collapsible week sections** for navigability and
+  documents the planned weekly-report dashboard repo
+  (`south-texas-aq-results`) and future GIS dashboard
+- Doc 17 expanded with the **authenticated login flow**, Better Auth
+  programmatic sign-in example, and a `NeonDataAPI` Python helper class
+
+### Changed
+
+- **Calaveras Lake Park (480291609) reframed as "officially retired"**
+  in all docs (was previously "excluded"). Status field unchanged;
+  documentation language tightened.
+- Reproducibility doc (`pipeline/docs/11_reproducibility.md`) leads
+  with a "pipeline engineering: complete" callout and includes a
+  per-version engineering history table
+
+### Verified (via Neon MCP)
+
+| Table | Rows | Sites | Years | Size |
+|---|---:|---:|---|---:|
+| `aq.pollutant_hourly` | 7,699,105 | 42 | 2015–2025 | 1.4 GB |
+| `aq.weather_hourly` | 1,470,049 | 15 | 2014–2025 | 631 MB |
+| `aq.pollutant_daily` | 390,738 | 42 | 2015–2025 | 132 MB |
+| `aq.aq_weather_daily` | 390,738 | 42 | 2015–2025 | 132 MB |
+| `aq.naaqs_design_values` | 764 | 40 | 2015–2025 | 200 kB |
+| `aq.pollutant_monthly` | 11,333 | 39 | 2015–2025 | 1.8 MB |
+| `aq.site_registry` | 47 | — | — | 64 kB |
+| **Total DB** | | | | **~2.3 GB** |
+
+Non-null rates: VOCs 100% · PM10 98% · O₃ 97% · PM₂.₅ 95% ·
+NOx 95% · CO 91% · SO₂ 88%.
+
 ## [0.3.4] — 2026-04-15
 
 ### Added
