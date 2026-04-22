@@ -229,7 +229,7 @@ Already have the data downloaded? Pick your tool:
 
     ---
 
-    [Python](./07_usage_python.md) · [R / RStudio](./08_usage_r.md) · [Google Colab](./09_usage_colab.md) · [SQL / Postgres](./10_usage_sql.md)
+    [Python](./07_usage_python.md) · [R / RStudio](./08_usage_r.md) · [Google Colab](./09_usage_colab.md) · [SQL / Postgres](./10_usage_sql.md) · [**Colab + Neon DB**](./17_colab_database_guide.md)
 
 -   :material-chef-hat: **Recipes**
 

@@ -177,6 +177,7 @@ nav:
       - 8. R / RStudio: 08_usage_r.md
       - 9. Google Colab: 09_usage_colab.md
       - 10. SQL / Postgres: 10_usage_sql.md
+      - 17. Colab + Neon database: 17_colab_database_guide.md
   - Recipes & workflows:
       - 15. Worked examples: 15_recipes.md
   - Project management:
