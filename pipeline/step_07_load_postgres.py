@@ -50,11 +50,22 @@ from pipeline.utils.logging import get_logger, step_timer
 
 
 def _load_source(path: Path, source: str) -> pd.DataFrame:
-    """Read a parquet or CSV source file into a DataFrame."""
+    """Read a parquet file, parquet directory, or CSV into a DataFrame."""
     if not path.exists():
         raise FileNotFoundError(f"{path} — upstream step must run first")
     if source == "parquet":
         return pd.read_parquet(path)
+    if source == "parquet_dir":
+        # Partitioned Hive directory — glob for *.parquet to avoid
+        # OneDrive desktop.ini pollution (same approach as io.py).
+        files = list(path.rglob("*.parquet"))
+        if not files:
+            raise FileNotFoundError(f"No .parquet files under {path}")
+        import pyarrow.dataset as ds
+        dataset = ds.dataset(
+            [str(f) for f in files], format="parquet", partitioning="hive"
+        )
+        return dataset.to_table().to_pandas()
     if source == "csv":
         return pd.read_csv(path)
     raise ValueError(f"Unknown source type: {source!r}")

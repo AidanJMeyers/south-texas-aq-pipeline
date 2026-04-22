@@ -237,6 +237,12 @@ Already have the data downloaded? Pick your tool:
 
     [15 — Recipes & worked examples](./15_recipes.md) — copy-paste queries for common research tasks
 
+-   :material-calendar-check: **Project timeline**
+
+    ---
+
+    [16 — Analysis deliverables & delegation](./16_project_timeline.md) — week-by-week tasks through August 1
+
 -   :material-cog: **Operations**
 
     ---

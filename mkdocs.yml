@@ -179,6 +179,8 @@ nav:
       - 10. SQL / Postgres: 10_usage_sql.md
   - Recipes & workflows:
       - 15. Worked examples: 15_recipes.md
+  - Project management:
+      - 16. Analysis timeline & deliverables: 16_project_timeline.md
   - Operations:
       - 11. Reproducibility: 11_reproducibility.md
       - 12. Configuration reference: 12_configuration_reference.md

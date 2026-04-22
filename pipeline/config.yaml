@@ -153,8 +153,9 @@ postgres:
   schema:       "aq"          # All tables go into this schema
   chunksize:    50000          # Rows per INSERT batch
   if_exists:    "replace"      # 'replace' | 'append' — replace is idempotent
-  # Which analysis-ready tables to load. Raw hourly data stays in parquet
-  # only — too large for free-tier Postgres.
+  # Tables to load into the aq schema. Includes both analysis-ready
+  # aggregates AND full hourly resolution data (upgraded from free tier
+  # to Launch plan — 10 GB storage available).
   tables:
     - name:   "site_registry"
       source: "csv"
@@ -180,5 +181,17 @@ postgres:
       source: "parquet"
       path:   "data/parquet/combined/aq_weather_daily.parquet"
       indexes: ["aqsid", "date_local"]
-      # Skip gracefully if the free tier runs out of storage
-      skip_on_quota_error: true
+
+    # ---- Full hourly resolution tables (Launch plan, ~3.5 GB total) ----
+    # These are loaded once and refreshed only when new raw data arrives
+    # (expected: one more refresh when 2025 data is finalized).
+
+    - name:   "pollutant_hourly"
+      source: "parquet_dir"
+      path:   "data/parquet/pollutants"
+      indexes: ["aqsid", "date_local", "pollutant_group", "year"]
+
+    - name:   "weather_hourly"
+      source: "parquet_dir"
+      path:   "data/parquet/weather"
+      indexes: ["location", "year", "date_local"]
