@@ -123,40 +123,47 @@ That's it. From this point on, every query is `pd.read_sql(SQL, engine)`.
 Useful for **lightweight integrations** — dashboards, web apps,
 serverless functions — anywhere you don't want to ship a Postgres
 driver. Slower than direct SQL for large pulls because everything
-serializes to JSON.
+serializes to JSON. Two access modes: **anonymous** (public reads) and
+**authenticated** (login-gated, with audit trail and higher rate limits).
 
 ### How the Data API roles work
 
 Neon's Data API uses **PostgREST** under the hood, with these built-in
 Postgres roles:
 
-| Role | Purpose | Login? |
+| Role | Purpose | Activated by |
 |---|---|---|
-| `anonymous` | Public reads (no auth required) | No (assumed by API) |
-| `authenticated` | Reads after JWT auth via Neon Auth | No (assumed by API) |
-| `authenticator` | Login role the API uses to switch into the above two | Yes |
+| `anonymous` | Public reads, rate-limited | No header / no JWT |
+| `authenticated` | Logged-in reads, audited, higher limits | Valid JWT in `Authorization: Bearer <token>` |
+| `authenticator` | Login role the API uses to switch into the above | Internal — never used directly |
 
-The pipeline grants `SELECT` on all `aq.*` tables to both `anonymous` and
-`authenticated`, so anyone with your Data API URL can run read-only
-queries against any table. **No write operations are exposed.**
+The pipeline grants `SELECT` on all `aq.*` tables to **both** roles, so
+either path works for read queries. The authenticated path additionally
+gives you per-user audit logs, higher request quotas, and a clean upgrade
+path if you later add Row-Level Security or write-enabled tables.
 
 ### Get your Data API URL
 
-In the Neon console: **Settings → Data API → enable** (if not already) →
-copy the URL. It looks like:
+In the Neon console for `south-texas-aq` →
+**Settings → Data API → enable** (or check "Data API" tab if already
+enabled) → copy the **API URL**. It looks like:
 
 ```
-https://app-xxx.dpl.myneon.app
+https://app-ep-muddy-star-ant3mvxo.dpl.myneon.app
 ```
 
-### Example HTTP query
+(your actual endpoint ID is `ep-muddy-star-ant3mvxo` for this project)
+
+### Anonymous mode — quick public queries
+
+No headers needed. Any HTTP client can hit it:
 
 ```python
 import requests, pandas as pd
 
-API_URL = "https://your-data-api-url.dpl.myneon.app"
+API_URL = "https://app-ep-muddy-star-ant3mvxo.dpl.myneon.app"
 
-# Get all NAAQS exceedances for 2023 — note the PostgREST query syntax
+# Get all NAAQS exceedances for 2023 — PostgREST query syntax
 resp = requests.get(
     f"{API_URL}/aq/naaqs_design_values",
     params={
@@ -171,16 +178,164 @@ df = pd.DataFrame(resp.json())
 print(df)
 ```
 
+PostgREST query operators you'll use most:
+`eq.<val>`, `neq.<val>`, `gt.<val>`, `gte.<val>`, `lt.<val>`, `lte.<val>`,
+`in.(<a>,<b>,<c>)`, `is.null`, `is.true`, `like.*pattern*`,
+`ilike.*pattern*` (case-insensitive). Combine with `&` in the URL.
+
+### Authenticated mode — login-gated queries
+
+This is the **recommended path** for any real downstream use (notebooks
+shared across the lab, dashboards, internal apps). You get audit
+trails, higher rate limits, and the ability to lock specific tables to
+authenticated users only later if needed.
+
+#### Step 1 — Sign up / sign in to Neon Auth
+
+This project's auth is configured with two providers (verified via the
+Neon MCP):
+
+- **Google OAuth** (one-click sign-in)
+- **Email + password** (no email verification required, instant signup)
+
+The hosted login page lives at the project's auth endpoint. Get the URL
+from the Neon console → **Auth → Settings → Login URL**, or use the
+embedded sign-in page in the Neon dashboard.
+
+For Melaram Lab members, the recommended workflow is:
+
+1. Go to the project login URL (visible on the docs site once added)
+2. Click "Sign in with Google" using your `@tamucc.edu` account
+3. The hosted page shows your JWT — copy it (good for ~24 hours)
+
+#### Step 2 — Use the JWT in Colab
+
+```python
+from google.colab import userdata
+import requests, pandas as pd
+
+API_URL = "https://app-ep-muddy-star-ant3mvxo.dpl.myneon.app"
+
+# Store the JWT as a Colab secret named AQ_NEON_JWT, then:
+JWT = userdata.get('AQ_NEON_JWT')
+
+headers = {
+    "Accept": "application/json",
+    "Authorization": f"Bearer {JWT}",
+}
+
+resp = requests.get(
+    f"{API_URL}/aq/pollutant_daily",
+    params={
+        "aqsid": "eq.480290052",
+        "pollutant_group": "eq.Ozone",
+        "valid_day": "is.true",
+        "select": "date_local,mean,max,n_hours",
+        "order": "date_local.asc",
+        "limit": "1000",
+    },
+    headers=headers,
+)
+resp.raise_for_status()
+df = pd.DataFrame(resp.json())
+print(f"Got {len(df)} rows for Camp Bullis ozone")
+df.head()
+```
+
+#### Step 3 — Re-using the JWT across notebooks
+
+Once stored as a Colab secret, every notebook in the project that
+enables that secret can read it via `userdata.get('AQ_NEON_JWT')`. No
+re-login needed until the token expires (~24 h, configurable in Neon Auth
+settings).
+
+When the JWT expires, the API returns `401 Unauthorized` — re-run the
+sign-in flow above to mint a new one.
+
+#### Step 4 — Programmatic refresh (advanced, optional)
+
+For long-running notebooks or scheduled jobs, build a short helper that
+hits the Better Auth refresh endpoint and rotates the JWT before it
+expires. This is overkill for one-off Colab analysis but useful if
+you're building a daily-refresh dashboard. Patterns at
+https://www.better-auth.com/docs/concepts/session-management.
+
+### Helper: Python wrapper for the authenticated Data API
+
+Drop this in any Colab notebook to get a clean `query()` function:
+
+```python
+from google.colab import userdata
+import requests
+import pandas as pd
+
+class NeonDataAPI:
+    """Tiny PostgREST client for the South Texas AQ data API."""
+
+    def __init__(self, base_url: str, jwt: str | None = None):
+        self.base_url = base_url.rstrip("/")
+        self.headers = {"Accept": "application/json"}
+        if jwt:
+            self.headers["Authorization"] = f"Bearer {jwt}"
+
+    def query(self, table: str, **filters) -> pd.DataFrame:
+        """Run a PostgREST GET against `aq.<table>` with given filters.
+
+        Special params: select, order, limit, offset.
+        Filter syntax: column='eq.value' (or any PostgREST operator).
+        """
+        url = f"{self.base_url}/aq/{table}"
+        resp = requests.get(url, params=filters, headers=self.headers)
+        resp.raise_for_status()
+        return pd.DataFrame(resp.json())
+
+# Usage:
+api = NeonDataAPI(
+    base_url="https://app-ep-muddy-star-ant3mvxo.dpl.myneon.app",
+    jwt=userdata.get('AQ_NEON_JWT'),
+)
+
+# Example: Bexar County ozone exceedances in 2024
+exceed = api.query(
+    "naaqs_design_values",
+    county_name="eq.Bexar",
+    metric="eq.ozone_8hr_4th_max",
+    year="eq.2024",
+    exceeds="is.true",
+    select="aqsid,site_name,value",
+    order="value.desc",
+)
+print(exceed)
+```
+
 ### When to choose Data API vs. direct SQL
 
-| Use Data API when | Use direct SQL when |
+| Use Data API (HTTP) when… | Use direct SQL (psycopg) when… |
 |---|---|
-| Building a public dashboard | Doing analysis in Colab |
-| Serverless function (no driver install) | Pulling >10k rows |
-| You want HTTP-based caching | You need joins or window functions |
-| External app without Postgres support | Performance matters |
+| Building a public web dashboard | Doing heavy analysis in Colab |
+| Lightweight serverless function (no driver install) | Pulling >10 k rows |
+| Need per-user audit trail (auth mode) | Need joins, CTEs, window functions |
+| Sharing a query with non-Python collaborators | Reproducing NAAQS calculations |
+| Access from a tool that only speaks HTTP | Generating manuscript figures |
 
-For analysis in Colab → **always use direct SQL.**
+**For day-to-day analysis → direct SQL.**
+**For end-user-facing dashboards or apps → authenticated Data API.**
+
+### Why authenticated > anonymous (even for read-only data)
+
+Three concrete reasons:
+
+1. **Audit trail.** Every authenticated request is tied to a Neon Auth
+   user ID. You can query `neon_auth.session` to see which lab member
+   accessed what, when. Anonymous requests are anonymous — you only get
+   IP addresses.
+2. **Higher rate limits.** Neon caps anonymous requests aggressively
+   (a few hundred per minute per IP). Authenticated users get
+   thousands per minute.
+3. **Forward-compatible.** If you later add tables that need write
+   access (e.g. a `notes` table for analyst annotations) or sensitive
+   tables locked behind RLS, the auth flow is already in place — no
+   user-facing migration.
 
 ---
 
