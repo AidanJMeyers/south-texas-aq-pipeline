@@ -84,6 +84,7 @@ pip-log.txt
 *.pem
 credentials.json
 secrets.yaml
+.mcp.json
 
 # -- MkDocs build output (regenerated on every push) ----------------------
 site/
