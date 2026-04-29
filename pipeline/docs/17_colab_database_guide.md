@@ -350,7 +350,30 @@ Three concrete reasons:
 
 ---
 
-## Worked examples
+## :material-rocket: Ready-to-run starter notebook
+
+Skip the worked examples below if you just want to verify everything
+works on your machine — open this notebook directly in Colab:
+
+> **`notebooks/API_Test_AM.ipynb`** ([open in Colab](https://colab.research.google.com/github/AidanJMeyers/south-texas-aq-pipeline/blob/main/notebooks/API_Test_AM.ipynb)) ([view on GitHub](https://github.com/AidanJMeyers/south-texas-aq-pipeline/blob/main/notebooks/API_Test_AM.ipynb))
+
+It runs end-to-end in ~2 minutes and validates:
+
+- Direct SQL connection to Neon (Cell 2)
+- All 7 `aq.*` tables present and queryable (Test 1)
+- 47-site registry breakdown matches expectations (Test 2)
+- Pollutant non-null rates per group (Test 3)
+- Phase 1 Week 1 descriptive statistics across 7.7M rows
+- Three starter figures: annual means by county/pollutant, diurnal ozone
+  profile at Camp Bullis, county-level PM₂.₅ box plots
+- Anonymous Data API path via PostgREST (Bonus cell)
+
+The notebook also writes `descriptives_pollutant_county_year.csv` and
+three `.png` figures to the Colab runtime, ready to download.
+
+---
+
+## Worked examples (manual / step-by-step)
 
 ### Example 1 — Hourly diurnal ozone profile at Camp Bullis (2023)
 
