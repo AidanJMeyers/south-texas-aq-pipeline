@@ -97,35 +97,50 @@ naaqs:
 # ----------------------------------------------------------------------------
 expected:
   # Raw row counts in the By_Pollutant CSVs (what the validator sees).
-  # These are BEFORE step 01's dedup + out-of-scope filters.
+  # These are POST-refresh counts as of v0.3.6 (April 28, 2026).
   #
   # History:
   #   v0.3.2: VOCs grew from 46,704 (Hillcrest only) to 3,354,321 after
   #           CC Palm VOCs raw file was ingested.
   #   v0.3.3: No raw CSV change. Step 01 now drops Calaveras Lake TCEQ
-  #           feed (~478,846 rows post-dedup) via OUT_OF_SCOPE_FILTERS
-  #           to avoid mixing EPA + TCEQ feeds for the same EPA site.
-  total_pollutant_rows:     9151245
+  #           feed (~478,846 rows post-dedup) via OUT_OF_SCOPE_FILTERS.
+  #   v0.3.6: EPA 2025 gap refresh ingested via notebooks/EPA_Refresh_2025_AM.py.
+  #           +66,603 genuinely new rows added across CO/NOx/O3/PM10/PM2.5/SO2.
+  #           Append script's dedup pass also collapsed ~973k pre-existing
+  #           exact-duplicate rows that step 01 used to drop on every run,
+  #           so several pollutant totals went DOWN (those dupes are now
+  #           dropped at append time, not at parquet build time). The
+  #           per-site row counts only increased — verified rebuild via
+  #           _verify_refresh.py before bumping these expected counts.
+  total_pollutant_rows:     8242879
   pollutant_rows:
-    CO:          191448
-    NOx_Family: 1989602
-    Ozone:      1823627
-    PM10:        99910
-    PM2.5:      1168298
-    SO2:         524039
+    CO:          193434
+    NOx_Family: 1467553
+    Ozone:      1520756
+    PM10:        103634
+    PM2.5:      1075659
+    SO2:         527522
     VOCs:      3354321
   # Expected row counts POST-filter (after step 01 writes parquet).
   # Documented here for downstream validators / sanity checks; NOT
   # enforced by step 00.
+  #
+  # NOTE (v0.3.6): pre-existing exact duplicates (~973k rows total
+  # across NOx/O3/PM2.5) were collapsed at refresh-append time, so
+  # step 01's dedup pass will now drop ~0 from those groups (used to
+  # drop 551k/311k/110k respectively). The OUT_OF_SCOPE_FILTERS still
+  # drops Calaveras Lake TCEQ rows. Net result: parquet_expected per
+  # group ≈ raw count − Calaveras_TCEQ_remaining_rows. Pipeline will
+  # log actual counts on next run; update these after.
   parquet_expected:
-    CO:          191448
-    NOx_Family: 1186969
-    Ozone:      1427094
-    PM10:        99910
-    PM2.5:       997440
-    SO2:         441923
+    CO:          193434
+    NOx_Family: 1216225  # ~raw minus Calaveras TCEQ NOx (~251k)
+    Ozone:      1435731  # ~raw minus Calaveras TCEQ O3 (~85k)
+    PM10:        103634
+    PM2.5:      1015282  # ~raw minus Calaveras TCEQ PM2.5 (~60k)
+    SO2:         445406  # ~raw minus Calaveras TCEQ SO2 (~82k)
     VOCs:      3354321
-    total:     7699105
+    total:     7763833  # approximate; will be exact after pipeline run
   # 42 sites currently have measurement data in the pipeline.
   # 47 total inventory:
   #   42 active
