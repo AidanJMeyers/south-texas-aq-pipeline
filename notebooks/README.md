@@ -6,9 +6,10 @@ the `AQ_POSTGRES_URL` Colab secret once, then run end-to-end.
 
 ## Index
 
-| Notebook | Author | Purpose | Open |
+| File | Author | Purpose | Open |
 |---|---|---|---|
 | `API_Test_AM.ipynb` | Aidan Meyers | API + Neon DB smoke test + Phase 1 descriptives + 3 starter figures | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/AidanJMeyers/south-texas-aq-pipeline/blob/main/notebooks/API_Test_AM.ipynb) |
+| `EPA_Refresh_2025_AM.py` | Aidan Meyers | Targeted EPA AQS refresh — pulls only the 38 (county × parameter) gaps identified on 2026-04-22, skips dead sensors, outputs delta CSV in canonical pipeline schema, optional Neon upsert | [view](https://github.com/AidanJMeyers/south-texas-aq-pipeline/blob/main/notebooks/EPA_Refresh_2025_AM.py) |
 
 ## Naming convention
 
