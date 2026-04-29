@@ -92,6 +92,50 @@ PARAM_LOOKUP: dict[str, tuple[str, str]] = {
     "88502": ("PM2.5", "PM2.5"),
 }
 
+# Canonical aqsid -> site_name. Must match aq.site_registry exactly so
+# Neon doesn't end up with split-name duplicate rows (v0.3.6 bug — see
+# pipeline/docs/06_data_quality.md issue 13b).
+#
+# Source of truth:
+#     SELECT aqsid::text, site_name FROM aq.site_registry WHERE site_name IS NOT NULL
+#
+# When adding a new EPA site to the gap targets, add its canonical
+# site_name here too. The script warns loudly if a refreshed aqsid
+# is missing from this lookup.
+SITE_NAMES_CANONICAL: dict[str, str] = {
+    # EPA sites (active, with refresh history)
+    "480131090": "Pleasanton_1090",
+    "480290032": "San Antonio Northwest_0032",
+    "480290052": "Camp Bullis_0052",
+    "480290053": "Live Oak_0053",
+    "480290059": "Calaveras Lake_0059",
+    "480290060": "San Antonio Palo Alto_0060",
+    "480290677": "San Antonio Old Hwy 90_0677",
+    "480291069": "Converse_1069",
+    "480291080": "Heritage MS SO2_1080",
+    "480291087": "Windcrest_1087",
+    "480291097": "Von Ormy_1097",
+    "480610006": "Brownsville_0006",
+    "480611023": "Harlingen_1023",
+    "480611098": "Brownsville Roca_1098",
+    "480612004": "Port Isabel_2004",
+    "482150043": "Mission_0043",
+    "482151046": "Edinburg_1046",
+    "482551070": "Karnes City_1070",
+    "482730314": "Kingsville_0314",
+    "483230004": "Eagle Pass_0004",
+    "483550025": "Corpus Christi West_0025",
+    "483550026": "Corpus Christi Tuloso_0026",
+    "483550032": "Corpus Christi Dona Park_0032",
+    "483550034": "Corpus Christi Holly_0034",
+    "484690003": "Victoria_0003",
+    "484790016": "Laredo Vidaurri_0016",
+    "484790017": "Laredo Santa Maria_0017",
+    "484790313": "Laredo Hachar_0313",
+    "484931038": "Floresville_1038",
+}
+
+
 # County FIPS -> human name (title case, matches pipeline's normalized form)
 COUNTY_NAMES: dict[str, str] = {
     "013": "Atascosa",
@@ -282,7 +326,20 @@ def to_canonical_schema(raw_rows: list, param_code: str, county_code: str) -> pd
     out["aqsid"]      = (out["state_code"].fillna(0).astype(int).astype(str).str.zfill(2)
                           + out["county_code"].fillna(0).astype(int).astype(str).str.zfill(3)
                           + out["site_number"].fillna(0).astype(int).astype(str).str.zfill(4))
-    out["site_name"]  = (county_name + "_" + out["site_number"].fillna(0).astype(int).astype(str).str.zfill(4))
+    # CANONICAL site_name from a lookup matching aq.site_registry — DO NOT
+    # construct from county_name or you get split-name rows (v0.3.6 bug).
+    # If a refreshed aqsid isn't in the lookup, fall back to the legacy
+    # "{county}_{site_number}" format and warn loudly.
+    out["site_name"] = out["aqsid"].map(SITE_NAMES_CANONICAL)
+    missing_mask = out["site_name"].isna()
+    if missing_mask.any():
+        unknown = sorted(out.loc[missing_mask, "aqsid"].unique())
+        print(f"          !! WARNING: aqsids not in SITE_NAMES_CANONICAL "
+              f"(falling back to County_NNNN format, will create dupes): {unknown}")
+        out.loc[missing_mask, "site_name"] = (
+            county_name + "_" + out.loc[missing_mask, "site_number"]
+                .fillna(0).astype(int).astype(str).str.zfill(4)
+        )
 
     # Drop rows where measurement is null (AQS often returns scaffolded rows
     # for the requested time window even when nothing was actually measured).

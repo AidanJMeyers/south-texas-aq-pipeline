@@ -301,6 +301,80 @@ EPA data currently runs through **July 2025**; TCEQ through **November
 2025**. Any full-year 2025 analysis will be incomplete. NAAQS design
 values for 2025 should be treated as provisional.
 
+### 13b. April 2026 TCEQ refresh — investigation outcomes
+
+**Severity:** Informational
+**Status:** ✅ Investigations closed (April 28, 2026)
+
+Following the v0.3.6 EPA refresh, the team manually pulled TCEQ TAMIS
+data for every site that was still showing trailing-edge gaps. The
+refresh confirmed several investigations and surfaced two new pending
+items:
+
+#### CC Hillcrest VOCs — no Q4 2025 data available
+
+`483550029` (Corpus Christi Hillcrest, the project's only TCEQ Canister
+VOC site) had its latest data on **2025-09-28**. The team queried TAMIS
+directly for the 2025-09-29 → 2025-12-31 window and **TAMIS returned
+no rows**. The Canister sampling cadence at this site is intermittent;
+no further VOC data exists for Q4 2025. This site is now considered
+**current as of 2025-09-28** and no further action is needed for this
+data refresh cycle.
+
+#### TCEQ trailing-edge sites — confirmed no newer data via TAMIS
+
+Manual re-pulls from TAMIS on **2026-04-28** confirmed that the
+trailing-edge dates per site are TAMIS's most-current available data,
+not a pipeline gap. Files retrieved:
+
+- `TCEQ_Ozone_111325-010126_8sites.txt` — 924 ozone rows for 7 sites
+  (Garden Ridge had no NOx data after 11-21). All rows already present
+  in pipeline DB; refresh added 0 truly-new rows.
+- `TCEQ_NOx_112225-010126_4sites.txt` — 1,931 NOx rows for 3 sites
+  (Bulverde, NB Airport, Seguin all through 2025-11-30; Garden Ridge
+  returned 0 rows). All rows already present; refresh added 0
+  truly-new rows.
+
+The trailing-edge per-site state, **confirmed as TCEQ's latest as of
+2026-04-28**:
+
+| Site | Pollutant | Latest |
+|---|---|---|
+| CPS Pecan Valley | Ozone | 2025-11-12 |
+| Fair Oaks Ranch | Ozone | 2025-11-13 |
+| Elm Creek Elementary | Ozone | 2025-11-14 |
+| Government Canyon | Ozone | 2025-11-14 |
+| Seguin Outdoor Learning | Ozone | 2025-11-19 |
+| New Braunfels Airport | Ozone | 2025-11-20 |
+| City of Garden Ridge | Ozone, NOx | 2025-11-21 |
+| Bulverde Elementary | Ozone | 2025-11-24 |
+| Bulverde Elementary | NOx | 2025-11-30 |
+| New Braunfels Airport | NOx | 2025-11-30 |
+| Seguin Outdoor Learning | NOx | 2025-11-30 |
+
+#### Two PM sites — pending TCEQ Air Quality Team email response
+
+These two TCEQ-operated PM sites have no 2025 data ingested but TAMIS
+returned nothing via the web report wizard or custom-query interfaces.
+On 2026-04-28, **Manasa Kuchavaram emailed the TCEQ Air Quality Team**
+requesting historical data for January 1 – December 31, 2025:
+
+| AQSID | CAMS | Site | Pollutants | Last data |
+|---|---|---|---|---|
+| 480291091 | 1091 | San Antonio Red Hill Lane | PM2.5 | 2024-12-31 |
+| 480911088 | 1088 | New Braunfels Oak Run Parkway | PM10, PM2.5 | 2024-12-31 |
+
+The team confirmed via TAMIS's "Data by Site by Date Daily Summary"
+interface that these sites do report 2025 data, ruling out
+decommissioning. The most likely cause is a TAMIS export pipeline
+delay. **Status: awaiting TCEQ response.** When data is received,
+ingest via the standard refresh flow:
+
+1. Drop the raw `.txt` files under `!Final Raw Data/TCEQ Data - Missing Sites/`
+2. Update `notebooks/TCEQ_Append_2025_AM.py` `INGEST_FILES` list
+3. Add the missing `aqsid → site_name` entries to `SITE_NAMES` if needed
+4. Run the script + the COPY-based hourly reload
+
 ### 14. OneDrive `desktop.ini` sidecar files
 
 **Severity:** Low (crashed pyarrow dataset scans)

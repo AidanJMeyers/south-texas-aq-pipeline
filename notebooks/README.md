@@ -10,6 +10,8 @@ the `AQ_POSTGRES_URL` Colab secret once, then run end-to-end.
 |---|---|---|---|
 | `API_Test_AM.ipynb` | Aidan Meyers | API + Neon DB smoke test + Phase 1 descriptives + 3 starter figures | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/AidanJMeyers/south-texas-aq-pipeline/blob/main/notebooks/API_Test_AM.ipynb) |
 | `EPA_Refresh_2025_AM.py` | Aidan Meyers | Targeted EPA AQS refresh — pulls only the 38 (county × parameter) gaps identified on 2026-04-22, skips dead sensors, outputs delta CSV in canonical pipeline schema, optional Neon upsert | [view](https://github.com/AidanJMeyers/south-texas-aq-pipeline/blob/main/notebooks/EPA_Refresh_2025_AM.py) |
+| `TCEQ_Append_2025_AM.py` | Aidan Meyers | Convert manually-pulled TCEQ TAMIS RD files to canonical 15-col schema and append to By_Pollutant CSVs. Applies ozone ppb→ppm normalization. Uses canonical site_name lookup (no split-name dupes) | [view](https://github.com/AidanJMeyers/south-texas-aq-pipeline/blob/main/notebooks/TCEQ_Append_2025_AM.py) |
+| `finish_hourly_tables_AM.py` | Aidan Meyers | Recovery script — reload `aq.pollutant_hourly` + `aq.weather_hourly` from local parquet via Postgres COPY (10–100× faster than pandas `to_sql`, resilient to network blips). Use this after rebuilding parquet via the pipeline. | [view](https://github.com/AidanJMeyers/south-texas-aq-pipeline/blob/main/notebooks/finish_hourly_tables_AM.py) |
 
 ## Naming convention
 
