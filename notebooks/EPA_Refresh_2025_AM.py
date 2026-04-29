@@ -236,10 +236,25 @@ def aqs_get(endpoint: str, params: dict, max_retries: int = 3) -> list | None:
     return None
 
 
+_CANONICAL_COLS = [
+    "state_code", "county_code", "site_number", "parameter_code", "poc",
+    "date_local", "time_local", "sample_measurement", "method_code",
+    "county_name", "pollutant_name", "aqsid", "data_source",
+    "pollutant_group", "site_name",
+]
+
+
+def empty_canonical() -> pd.DataFrame:
+    """Empty DataFrame with the canonical 15 columns (preserves schema on
+    'no rows' returns so downstream operations never KeyError)."""
+    return pd.DataFrame({c: pd.Series(dtype=object) for c in _CANONICAL_COLS})
+
+
 def to_canonical_schema(raw_rows: list, param_code: str, county_code: str) -> pd.DataFrame:
-    """Convert AQS API response rows -> the pipeline's 15-column schema."""
+    """Convert AQS API response rows -> the pipeline's 15-column schema.
+    Always returns a DataFrame with all 15 columns, even if empty."""
     if not raw_rows:
-        return pd.DataFrame()
+        return empty_canonical()
 
     df = pd.DataFrame(raw_rows)
     pollutant_name, pollutant_group = PARAM_LOOKUP[param_code]
@@ -249,7 +264,7 @@ def to_canonical_schema(raw_rows: list, param_code: str, county_code: str) -> pd
         "state_code":         df.get("state_code"),
         "county_code":        df.get("county_code"),
         "site_number":        df.get("site_number"),
-        "parameter_code":     df.get("parameter_code", param_code).astype(int),
+        "parameter_code":     df.get("parameter_code", param_code),
         "poc":                df.get("poc"),
         "date_local":         df.get("date_local"),
         "time_local":         df.get("time_local"),
@@ -257,28 +272,40 @@ def to_canonical_schema(raw_rows: list, param_code: str, county_code: str) -> pd
         "method_code":        df.get("method_code"),
     })
     # Cast int columns explicitly (some come back as strings)
-    for c in ("state_code", "county_code", "site_number", "poc", "method_code"):
+    for c in ("state_code", "county_code", "site_number", "parameter_code", "poc", "method_code"):
         out[c] = pd.to_numeric(out[c], errors="coerce").astype("Int32")
     out["county_name"]     = county_name
     out["pollutant_name"]  = pollutant_name
-    out["aqsid"]           = (out["state_code"].astype(str).str.zfill(2)
-                              + out["county_code"].astype(str).str.zfill(3)
-                              + out["site_number"].astype(str).str.zfill(4))
     out["data_source"]     = "EPA"
     out["pollutant_group"] = pollutant_group
-    out["site_name"]       = (county_name + "_" + out["site_number"].astype(str).str.zfill(4))
+    # aqsid + site_name require non-null state/county/site — guard with fillna
+    out["aqsid"]      = (out["state_code"].fillna(0).astype(int).astype(str).str.zfill(2)
+                          + out["county_code"].fillna(0).astype(int).astype(str).str.zfill(3)
+                          + out["site_number"].fillna(0).astype(int).astype(str).str.zfill(4))
+    out["site_name"]  = (county_name + "_" + out["site_number"].fillna(0).astype(int).astype(str).str.zfill(4))
 
-    # Drop rows with no measurement (AQS sometimes returns null-flagged rows)
+    # Drop rows where measurement is null (AQS often returns scaffolded rows
+    # for the requested time window even when nothing was actually measured).
     out = out.dropna(subset=["sample_measurement"]).reset_index(drop=True)
+    if out.empty:
+        return empty_canonical()
 
-    # Drop dead-sensor rows defensively (shouldn't appear but belt + suspenders)
+    # Drop dead-sensor rows defensively. Vectorized so it works on any size.
     dead_keys = {(a, p) for a, p, _ in DEAD_SENSORS}
-    out = out[~out.apply(
-        lambda r: (r["aqsid"], r["pollutant_group"]) in dead_keys
-                  or (r["aqsid"], r["pollutant_name"]) in dead_keys,
-        axis=1,
-    )].reset_index(drop=True)
-    return out
+    if dead_keys:
+        keep_mask = ~(
+            list(zip(out["aqsid"], out["pollutant_group"]))
+            != [(a, p) for a, p in zip(out["aqsid"], out["pollutant_group"])]
+        )
+        # Use a simple boolean array build instead — vectorized + empty-safe
+        bad_a = pd.Series([(a, g) in dead_keys or (a, n) in dead_keys
+                            for a, g, n in zip(out["aqsid"],
+                                                out["pollutant_group"],
+                                                out["pollutant_name"])])
+        out = out[~bad_a.values].reset_index(drop=True)
+
+    # Reorder to canonical schema for stable concat
+    return out[_CANONICAL_COLS]
 
 
 # =============================================================================
@@ -290,14 +317,19 @@ def pull_gap_targets() -> tuple[pd.DataFrame, dict]:
     print("=" * 70)
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    log_path = OUTPUT_DIR / "refresh_log.txt"
+    log_path  = OUTPUT_DIR / "refresh_log.txt"
+    csv_path  = OUTPUT_DIR / f"EPA_delta_{RUN_TS}.csv"   # incremental writes
+    json_path = OUTPUT_DIR / f"refresh_summary_{RUN_TS}.json"
+
     log_lines: list[str] = [f"Refresh run: {RUN_TS}",
                              f"EDATE: {EDATE}",
                              f"Gap targets: {len(GAP_TARGETS)}",
+                             f"Incremental CSV: {csv_path}",
                              ""]
 
     deltas: list[pd.DataFrame] = []
     summary = {"runs": [], "total_rows": 0, "started": RUN_TS}
+    csv_initialized = False
 
     for i, (county_code, param_code, bdate, comment) in enumerate(GAP_TARGETS, 1):
         county_name = COUNTY_NAMES.get(county_code, county_code)
@@ -305,24 +337,33 @@ def pull_gap_targets() -> tuple[pd.DataFrame, dict]:
         tag = f"{county_name:>10s} · {poll_name:<6s} · param {param_code} · {bdate} → {EDATE}"
         print(f"[{i:>2}/{len(GAP_TARGETS)}] {tag}  — {comment}")
 
-        raw = aqs_get("sampleData/byCounty", {
-            "param":   param_code,
-            "bdate":   bdate,
-            "edate":   EDATE,
-            "state":   STATE,
-            "county":  county_code,
-        })
-        rows_returned = len(raw) if raw else 0
+        try:
+            raw = aqs_get("sampleData/byCounty", {
+                "param":   param_code,
+                "bdate":   bdate,
+                "edate":   EDATE,
+                "state":   STATE,
+                "county":  county_code,
+            })
+            rows_returned = len(raw) if raw else 0
+            df = to_canonical_schema(raw or [], param_code, county_code)
+        except Exception as e:
+            # Per-call exception isolation — never let one bad pull kill the run.
+            print(f"          ✗ exception: {type(e).__name__}: {e}")
+            df = empty_canonical()
+            rows_returned = 0
 
-        if rows_returned:
-            df = to_canonical_schema(raw, param_code, county_code)
-            print(f"          → {len(df):,} canonical rows ({df['aqsid'].nunique()} sites)")
+        n_sites = df["aqsid"].nunique() if not df.empty else 0
+        if not df.empty:
+            print(f"          → {len(df):,} canonical rows ({n_sites} sites)")
             deltas.append(df)
+            # Append to CSV immediately so a crash never costs more than 1 pull
+            df.to_csv(csv_path, mode="a", header=not csv_initialized, index=False)
+            csv_initialized = True
         else:
-            df = pd.DataFrame()
             print(f"          → no data returned")
 
-        summary["runs"].append({
+        run_record = {
             "county_code": county_code,
             "county_name": county_name,
             "param_code":  param_code,
@@ -331,14 +372,23 @@ def pull_gap_targets() -> tuple[pd.DataFrame, dict]:
             "edate":       EDATE,
             "rows_raw":    rows_returned,
             "rows_kept":   len(df),
+            "n_sites":     int(n_sites),
             "comment":     comment,
-        })
-        log_lines.append(f"{tag}  raw={rows_returned}  kept={len(df)}  ({comment})")
+        }
+        summary["runs"].append(run_record)
+        log_lines.append(f"{tag}  raw={rows_returned}  kept={len(df)}  sites={n_sites}  ({comment})")
+
+        # Persist log + summary after every pull so partial progress is durable
+        log_path.write_text("\n".join(log_lines), encoding="utf-8")
+        summary["total_rows"] = sum(r["rows_kept"] for r in summary["runs"])
+        json_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+
         time.sleep(0.5)  # rate-limit (AQS allows ~5 req/sec)
 
-    delta = pd.concat(deltas, ignore_index=True) if deltas else pd.DataFrame()
+    delta = pd.concat(deltas, ignore_index=True) if deltas else empty_canonical()
     summary["total_rows"] = len(delta)
-    summary["finished"] = datetime.now().strftime("%Y%m%d_%H%M")
+    summary["finished"]   = datetime.now().strftime("%Y%m%d_%H%M")
+    json_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
 
     log_lines.append("")
     log_lines.append(f"TOTAL canonical rows pulled: {len(delta):,}")
@@ -346,8 +396,8 @@ def pull_gap_targets() -> tuple[pd.DataFrame, dict]:
         log_lines.append(f"Unique sites in delta:        {delta['aqsid'].nunique()}")
         log_lines.append(f"Pollutants in delta:          {sorted(delta['pollutant_group'].unique())}")
         log_lines.append(f"Date range in delta:          {delta['date_local'].min()} .. {delta['date_local'].max()}")
-
     log_path.write_text("\n".join(log_lines), encoding="utf-8")
+
     return delta, summary
 
 
@@ -480,10 +530,10 @@ def main() -> None:
 
     delta, summary = pull_gap_targets()
 
-    out_csv = OUTPUT_DIR / f"EPA_delta_{RUN_TS}.csv"
+    # The pull function already wrote the CSV + JSON incrementally
+    # (so even if the script crashes, partial progress is preserved).
+    out_csv     = OUTPUT_DIR / f"EPA_delta_{RUN_TS}.csv"
     out_summary = OUTPUT_DIR / f"refresh_summary_{RUN_TS}.json"
-    delta.to_csv(out_csv, index=False)
-    out_summary.write_text(json.dumps(summary, indent=2), encoding="utf-8")
     print(f"\n  Delta CSV:    {out_csv}  ({len(delta):,} rows)")
     print(f"  Summary JSON: {out_summary}")
 
