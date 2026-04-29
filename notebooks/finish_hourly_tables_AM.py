@@ -52,6 +52,22 @@ if not URL:
     print('  $env:AQ_POSTGRES_URL = [Environment]::GetEnvironmentVariable("AQ_POSTGRES_URL","User")')
     sys.exit(1)
 
+
+def _normalize_url(url: str) -> str:
+    """Force the psycopg (v3) driver. Without this, SQLAlchemy tries
+    psycopg2 (which is not installed in this project)."""
+    if url.startswith("postgres://"):
+        url = "postgresql://" + url[len("postgres://"):]
+    if url.startswith("postgresql://") and "+psycopg" not in url:
+        url = "postgresql+psycopg://" + url[len("postgresql://"):]
+    if "sslmode=" not in url:
+        sep = "&" if "?" in url else "?"
+        url = f"{url}{sep}sslmode=require"
+    return url
+
+
+URL = _normalize_url(URL)
+
 ROOT = Path(__file__).resolve().parent.parent
 SCHEMA = "aq"
 
