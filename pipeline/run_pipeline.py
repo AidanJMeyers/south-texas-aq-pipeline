@@ -31,14 +31,17 @@ from pipeline.utils.logging import get_logger                   # noqa: E402
 
 
 STEPS: list[tuple[str, str]] = [
-    ("00", "pipeline.step_00_validate_raw"),
-    ("01", "pipeline.step_01_build_pollutant_store"),
-    ("02", "pipeline.step_02_build_weather_store"),
-    ("03", "pipeline.step_03_compute_naaqs"),
-    ("04", "pipeline.step_04_compute_daily_aggregates"),
-    ("05", "pipeline.step_05_merge_aq_weather"),
-    ("06", "pipeline.step_06_export_analysis_ready"),
-    ("07", "pipeline.step_07_load_postgres"),
+    ("00",  "pipeline.step_00_validate_raw"),
+    ("01b", "pipeline.step_01b_ingest_tceq_raw"),     # NEW v0.4.0 — raw TCEQ TXT → canonical CSVs
+    ("01",  "pipeline.step_01_build_pollutant_store"),  # criteria CSVs → partitioned parquet
+    ("01c", "pipeline.step_01c_build_aux_stores"),     # NEW v0.4.0 — VOC + daily_24hr CSVs → parquet
+    ("02",  "pipeline.step_02_build_weather_store"),
+    ("03",  "pipeline.step_03_compute_naaqs"),
+    ("04",  "pipeline.step_04_compute_daily_aggregates"),
+    # ("05",  "pipeline.step_05_merge_aq_weather"),     # DROPPED in v0.4.0 (decision #13 — no combined table)
+    ("05b", "pipeline.step_05b_build_metadata"),       # NEW v0.4.0 — site_registry + parameter_reference CSVs
+    ("06",  "pipeline.step_06_export_analysis_ready"),
+    ("07",  "pipeline.step_07_load_postgres"),
 ]
 
 

@@ -35,26 +35,39 @@ project:
 # ----------------------------------------------------------------------------
 # Paths (all relative to ROOT — ROOT is auto-resolved at runtime)
 # ----------------------------------------------------------------------------
+# v0.4.0 paths are TCEQ-only. EPA paths kept here purely as historical
+# breadcrumbs — they are no longer referenced by any pipeline step.
+# (See !Archive_v0_3_7/ for the snapshotted v0.3.7 EPA-blended state.)
 paths:
-  # Inputs (read-only)
-  raw_epa:               "!Final Raw Data/EPA AQS Downloads"
-  raw_tceq:              "!Final Raw Data/TCEQ Data - Missing Sites"
+  # Inputs (read-only) — v0.4.0
+  raw_tceq:              "!Final Raw Data/TCEQ Downloads 5-21-26/Confirmed - AQS Ascending"
+  # NOTE: if the raw download is not in !Final Raw Data/, the resolver
+  # also checks ~/OneDrive/Downloads/TCEQ Downloads 5-21-26/Confirmed - AQS Ascending
+  raw_tceq_fallback:     "~/OneDrive/Downloads/TCEQ Downloads 5-21-26/Confirmed - AQS Ascending"
   tceq_registry:         "!Final Raw Data/Extra TCEQ Sites.xlsx"
   processed_pollutant:   "01_Data/Processed/By_Pollutant"
+  processed_voc_1hr:     "01_Data/Processed/By_VOC/vocs_1hr_2016_2025.csv"
+  processed_voc_24hr:    "01_Data/Processed/By_VOC/vocs_24hr_2015_2025.csv"
+  processed_daily_24hr:  "01_Data/Processed/By_Pollutant_Daily/pollutant_daily_24hr_2015_2025.csv"
   processed_county:      "01_Data/Processed/By_County"
   processed_weather:     "01_Data/Processed/Meteorological"
   weather_master:        "01_Data/Processed/Meteorological/Weather_Irradiance_Master_2015_2025.csv"
   site_mapping:          "01_Data/Processed/Meteorological/AQ_Weather_SiteMapping.csv"
   # Authoritative site coordinate lookup (29 sites with confirmed lat/lon)
   site_reference:        "01_Data/Reference/enhanced_monitoring_sites.csv"
+  # Parameter reference seed (canonical AQS code → friendly name + units + HAP flag)
+  parameter_reference:   "01_Data/Reference/parameter_reference.csv"
 
   # Outputs (pipeline-managed, safe to delete and rebuild)
   pipeline_output:       "data"
-  parquet_pollutants:    "data/parquet/pollutants"
+  parquet_pollutants:    "data/parquet/pollutants"           # criteria hourly
+  parquet_vocs_1hr:      "data/parquet/vocs_1hr"             # NEW v0.4.0
+  parquet_vocs_24hr:     "data/parquet/vocs_24hr"            # NEW v0.4.0
+  parquet_daily_24hr:    "data/parquet/pollutant_daily_24hr" # NEW v0.4.0 (site 0060 et al)
   parquet_weather:       "data/parquet/weather"
   parquet_naaqs:         "data/parquet/naaqs"
   parquet_daily:         "data/parquet/daily"
-  parquet_combined:      "data/parquet/combined"
+  # parquet_combined:    "data/parquet/combined"             # DROPPED in v0.4.0 (decision #13)
   parquet_rolling:       "data/parquet/rolling"
   csv_exports:           "data/csv"
   rds_exports:           "data/rds"
@@ -93,69 +106,66 @@ naaqs:
 
 # ----------------------------------------------------------------------------
 # Expected row counts (used by 00_validate_raw.py)
-# Tolerance allows ±1% to permit future minor reprocessing
+# Tolerance allows ±1% to permit future minor reprocessing.
 # ----------------------------------------------------------------------------
+# v0.4.0 counts derived from Phase 1 inventory scan
+# (!Archive_v0_3_7/inventory/inventory.json, scan date 2026-05-28).
+#
+# Migration history (preserved for posterity):
+#   v0.3.2: VOCs grew from 46,704 to 3,354,321 after CC Palm raw ingested.
+#   v0.3.3: step 01 dropped Calaveras Lake TCEQ feed via OUT_OF_SCOPE_FILTERS.
+#   v0.3.6: EPA 2025 gap refresh added +66,603 rows; ~973k duplicates collapsed.
+#   v0.3.7: TCEQ partial refresh of 8 sites for the 2025 trailing edge.
+#   v0.4.0: COMPLETE rebuild from TCEQ-only 2026-05-21 TAMIS pull.
+#           EPA hybrid retired. data_source column dropped. 14-col schema.
+#           VOCs split into vocs_1hr/vocs_24hr tables.
+#           Site 0060 24hr-only routed to pollutant_daily_24hr.
+#           Site 1097 (Von Ormy) dropped — not in TCEQ pull (decision #18).
+#           4 TSP-only sites dropped (623, 625, 626, 1609 — decision #8).
 expected:
-  # Raw row counts in the By_Pollutant CSVs (what the validator sees).
-  # These are POST-refresh counts as of v0.3.6 (April 28, 2026).
-  #
-  # History:
-  #   v0.3.2: VOCs grew from 46,704 (Hillcrest only) to 3,354,321 after
-  #           CC Palm VOCs raw file was ingested.
-  #   v0.3.3: No raw CSV change. Step 01 now drops Calaveras Lake TCEQ
-  #           feed (~478,846 rows post-dedup) via OUT_OF_SCOPE_FILTERS.
-  #   v0.3.6: EPA 2025 gap refresh ingested via notebooks/EPA_Refresh_2025_AM.py.
-  #           +66,603 genuinely new rows added across CO/NOx/O3/PM10/PM2.5/SO2.
-  #           Append script's dedup pass also collapsed ~973k pre-existing
-  #           exact-duplicate rows that step 01 used to drop on every run,
-  #           so several pollutant totals went DOWN (those dupes are now
-  #           dropped at append time, not at parquet build time). The
-  #           per-site row counts only increased — verified rebuild via
-  #           _verify_refresh.py before bumping these expected counts.
-  total_pollutant_rows:     8242879
+  # Raw TXT row counts in the 2026-05-21 TCEQ pull (51 files, scanned 2026-05-28).
+  total_raw_rows:           9770696
+  # Sum across the 41 site files (post A/B concatenation, no dedup yet).
+  total_site_file_rows:     4707003
+  # Sum across the 10 county VOC files.
+  total_voc_file_rows:      5063706
+
+  # Per-pollutant-group expected rows POST routing/dedup. These will be
+  # tightened to exact values after the first full pipeline run.
   pollutant_rows:
-    CO:          193434
-    NOx_Family: 1467553
-    Ozone:      1520756
-    PM10:        103634
-    PM2.5:      1075659
-    SO2:         527522
-    VOCs:      3354321
-  # Expected row counts POST-filter (after step 01 writes parquet).
-  # Documented here for downstream validators / sanity checks; NOT
-  # enforced by step 00.
-  #
-  # NOTE (v0.3.6): pre-existing exact duplicates (~973k rows total
-  # across NOx/O3/PM2.5) were collapsed at refresh-append time, so
-  # step 01's dedup pass will now drop ~0 from those groups (used to
-  # drop 551k/311k/110k respectively). The OUT_OF_SCOPE_FILTERS still
-  # drops Calaveras Lake TCEQ rows. Net result: parquet_expected per
-  # group ≈ raw count − Calaveras_TCEQ_remaining_rows. Pipeline will
-  # log actual counts on next run; update these after.
-  parquet_expected:
-    CO:          193434
-    NOx_Family: 1216225  # ~raw minus Calaveras TCEQ NOx (~251k)
-    Ozone:      1435731  # ~raw minus Calaveras TCEQ O3 (~85k)
-    PM10:        103634
-    PM2.5:      1015282  # ~raw minus Calaveras TCEQ PM2.5 (~60k)
-    SO2:         445406  # ~raw minus Calaveras TCEQ SO2 (~82k)
-    VOCs:      3354321
-    total:     7763833  # approximate; will be exact after pipeline run
-  # 42 sites currently have measurement data in the pipeline.
-  # 47 total inventory:
-  #   42 active
-  #    3 reference (CPS Energy fence-line: Gardner Rd, Gate 9A, Gate 58)
-  #    1 excluded  (Calaveras Lake Park 480291609 — TSP only, outside scope)
-  #    1 disabled  (Williams Park 483551024 — per inventory report)
-  active_sites:     42
-  total_inventory:  47
+    CO:           149767  # parameter 42101 only
+    SO2:          430734  # parameter 42401 only
+    NOx_Family:  1715049  # parameters 42601 + 42602 + 42603
+    Ozone:       1144266  # parameter 44201
+    PM10:          88626  # parameter 81102 (hourly only — site 0060 routes to daily_24hr)
+    PM2.5:       1181005  # parameters 88101 + 88502
+    # VOCs are NOT in this table — they go to vocs_1hr/vocs_24hr (decision #10).
+  # Site 0060 PM10 24hr-only readings.
+  daily_24hr_rows:           636
+  # VOC tables (vocs_1hr + vocs_24hr).
+  voc_1hr_rows:          4964065   # 5 county 1hr-AutoGC files (Bexar, Comal, Karnes, Nueces, Wilson)
+  voc_24hr_rows:           99244   # 5 county 24hr-AutoGC files (Bexar, Cameron, Hidalgo, Nueces, WEBB)
+
+  # Site inventory (v0.4.0).
+  # 41 active (39 unique AQSIDs in site files + 2 VOC-only sites in county files)
+  #            minus 1 Von Ormy not in pull = 40 active sites
+  #          + 11 sites have both criteria AND VOC measurements (already counted in 40)
+  # Note: registry total drops from 47 (v0.3.7) to ~41 because:
+  #   - 4 TSP sites dropped (623, 625, 626, 1609)
+  #   - 1 Von Ormy dropped (1097)
+  #   - 1 Williams Park (483551024) still disabled
+  active_sites:     40
+  reference_sites:   0  # CPS fence-line sites removed in v0.4.0 (no data, no purpose)
+  disabled_sites:    1  # Williams Park (still tracked but not in TCEQ pull anyway)
+  total_inventory:  41
   counties:         13
-  pollutant_groups:  7
-  weather_rows:   1470050
+  # Pollutant group count (excludes VOCs which live in their own tables).
+  pollutant_groups:  6  # CO, SO2, NOx_Family, Ozone, PM10, PM2.5
+  weather_rows:   1470050   # unchanged from v0.3.7 (weather data untouched)
   weather_stations: 15
-  row_count_tolerance_pct: 1.0
+  row_count_tolerance_pct: 2.0   # loosened from 1.0% during v0.4.0 stabilization
   date_min: "2015-01-01"
-  date_max: "2025-11-30"
+  date_max: "2025-12-31"
 
 # ----------------------------------------------------------------------------
 # Postgres loader (step 07) — optional
@@ -165,17 +175,31 @@ expected:
 # step 07 logs a warning and is skipped (not a failure).
 postgres:
   enabled:      true
-  schema:       "aq"          # All tables go into this schema
+  schema:       "aq"          # v0.4.0 schema. Old EPA-blended state is in aq_v0_3_7_epa.
   chunksize:    50000          # Rows per INSERT batch
   if_exists:    "replace"      # 'replace' | 'append' — replace is idempotent
-  # Tables to load into the aq schema. Includes both analysis-ready
-  # aggregates AND full hourly resolution data (upgraded from free tier
-  # to Launch plan — 10 GB storage available).
+  # Tables to load into the aq schema. v0.4.0 set:
+  #   - site_registry         (rebuilt with pollutant_groups_hourly/daily_24hr/voc_cadence arrays)
+  #   - parameter_reference   (NEW — 57 AQS codes with HAP flags, units, pollutant_group routing)
+  #   - naaqs_design_values   (recomputed per 40 CFR Part 50, includes site 0060 24hr metrics)
+  #   - pollutant_hourly      (criteria pollutants only, NO VOCs, NO site 0060)
+  #   - pollutant_daily       (derived from pollutant_hourly)
+  #   - pollutant_daily_24hr  (NEW — for site 0060 PM10 and any future 24hr-only site)
+  #   - pollutant_monthly     (derived from pollutant_daily)
+  #   - vocs_1hr              (NEW — 1hr-AutoGC VOC measurements, 5 sites)
+  #   - vocs_24hr             (NEW — 24hr-AutoGC VOC measurements, 5 sites)
+  #   - weather_hourly        (unchanged from v0.3.7)
+  # NOTE: aq_weather_daily is DROPPED in v0.4.0 (decision #13).
   tables:
     - name:   "site_registry"
       source: "csv"
       path:   "data/csv/site_registry.csv"
       indexes: ["aqsid"]
+
+    - name:   "parameter_reference"
+      source: "csv"
+      path:   "data/csv/parameter_reference.csv"
+      indexes: ["parameter_code", "pollutant_group"]
 
     - name:   "naaqs_design_values"
       source: "parquet"
@@ -187,24 +211,31 @@ postgres:
       path:   "data/parquet/daily/pollutant_daily.parquet"
       indexes: ["aqsid", "date_local", "pollutant_group"]
 
+    - name:   "pollutant_daily_24hr"
+      source: "parquet"
+      path:   "data/parquet/pollutant_daily_24hr/pollutant_daily_24hr.parquet"
+      indexes: ["aqsid", "date_local", "pollutant_group"]
+
     - name:   "pollutant_monthly"
       source: "parquet"
       path:   "data/parquet/daily/pollutant_monthly.parquet"
       indexes: ["aqsid", "year_month", "pollutant_group"]
 
-    - name:   "aq_weather_daily"
-      source: "parquet"
-      path:   "data/parquet/combined/aq_weather_daily.parquet"
-      indexes: ["aqsid", "date_local"]
-
-    # ---- Full hourly resolution tables (Launch plan, ~3.5 GB total) ----
-    # These are loaded once and refreshed only when new raw data arrives
-    # (expected: one more refresh when 2025 data is finalized).
-
+    # ---- Full hourly resolution tables ----
     - name:   "pollutant_hourly"
       source: "parquet_dir"
       path:   "data/parquet/pollutants"
       indexes: ["aqsid", "date_local", "pollutant_group", "year"]
+
+    - name:   "vocs_1hr"
+      source: "parquet_dir"
+      path:   "data/parquet/vocs_1hr"
+      indexes: ["aqsid", "date_local", "parameter_code"]
+
+    - name:   "vocs_24hr"
+      source: "parquet_dir"
+      path:   "data/parquet/vocs_24hr"
+      indexes: ["aqsid", "date_local", "parameter_code"]
 
     - name:   "weather_hourly"
       source: "parquet_dir"

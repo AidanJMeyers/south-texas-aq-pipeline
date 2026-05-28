@@ -44,6 +44,9 @@ from pipeline.utils.validation import (
 )
 
 
+# v0.4.0: VOCs are NOT in By_Pollutant/ — they live in By_VOC/ and have their
+# own validation (handled implicitly by step_01b's row-count logging since the
+# canonical schema check is identical).
 POLLUTANT_FILE_MAP: dict[str, str] = {
     "CO":         "CO_AllCounties_2015_2025.csv",
     "NOx_Family": "NOx_Family_AllCounties_2015_2025.csv",
@@ -51,7 +54,6 @@ POLLUTANT_FILE_MAP: dict[str, str] = {
     "PM10":       "PM10_AllCounties_2015_2025.csv",
     "PM2.5":      "PM2.5_AllCounties_2015_2025.csv",
     "SO2":        "SO2_AllCounties_2015_2025.csv",
-    "VOCs":       "VOCs_AllCounties_2016_2025.csv",
 }
 
 
@@ -117,11 +119,14 @@ def main(cfg: PipelineConfig | None = None) -> bool:
         del df
 
     # -------- Cross-file aggregates --------------------------------------
+    # v0.4.0: expected.total_pollutant_rows = sum of 6 criteria CSVs only.
+    # VOCs and pollutant_daily_24hr have their own validation paths.
+    expected_total = sum(int(v) for v in expected.get("pollutant_rows", {}).values())
     report.add(
         check_row_count(
             total_rows,
-            int(expected.get("total_pollutant_rows", 0)),
-            source="all_pollutants",
+            expected_total,
+            source="all_criteria_pollutants",
             tolerance_pct=tol,
         )
     )
@@ -148,7 +153,7 @@ def main(cfg: PipelineConfig | None = None) -> bool:
     report.add(
         check_unique_count(
             pd.Series(list(combined_group)),
-            int(expected.get("pollutant_groups", 7)),
+            int(expected.get("pollutant_groups", 6)),  # v0.4.0: 6 criteria (no VOCs)
             source="pollutant_group",
         )
     )

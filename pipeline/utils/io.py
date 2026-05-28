@@ -21,8 +21,10 @@ import yaml
 # ---------------------------------------------------------------------------
 # Canonical schemas
 # ---------------------------------------------------------------------------
-# 15-column By_Pollutant / By_County schema. Keeping site_name as string avoids
-# the NaN -> float coercion bug called out in PIPELINE_PROMPT.md §9 issue #6.
+# v0.4.0: 14-column By_Pollutant / By_County / By_VOC / By_Pollutant_Daily schema.
+# Drops the v0.3.7 `data_source` column (decision #3 — pipeline is TCEQ-only forever).
+# Keeping site_name as string avoids the NaN -> float coercion bug
+# called out in PIPELINE_PROMPT.md §9 issue #6.
 POLLUTANT_SCHEMA: dict[str, str] = {
     "state_code":         "Int32",
     "county_code":        "Int32",
@@ -36,7 +38,6 @@ POLLUTANT_SCHEMA: dict[str, str] = {
     "county_name":        "string",
     "pollutant_name":     "string",
     "aqsid":              "string",
-    "data_source":        "string",
     "pollutant_group":    "string",
     "site_name":          "string",
 }

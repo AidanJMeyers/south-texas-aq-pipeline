@@ -26,8 +26,9 @@ from pipeline.utils.logging import get_logger, step_timer
 EXPECTED_CSVS = [
     "daily_pollutant_means.csv",
     "naaqs_design_values.csv",
-    "combined_aq_weather_daily.csv",
     "site_registry.csv",
+    "parameter_reference.csv",
+    # NOTE: combined_aq_weather_daily.csv was dropped in v0.4.0 (decision #13).
 ]
 
 

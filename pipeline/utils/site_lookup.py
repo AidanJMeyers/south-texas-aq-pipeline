@@ -1,199 +1,113 @@
-"""Canonical South Texas AQ site registry.
+"""v0.4.0 site registry builder.
 
-Builds the authoritative site inventory by combining four sources:
+Builds the canonical site inventory by combining four sources:
 
-1. **Pipeline data** — the sites that actually have measurement rows in
-   ``data/parquet/daily/`` after step 04. These are the truly active sites
-   you can query against.
-2. **Enhanced monitoring sites CSV** — ``01_Data/Reference/enhanced_monitoring_sites.csv``
-   provides AQS-verified lat/lon for 29 sites.
-3. **Extra TCEQ Sites workbook** — ``!Final Raw Data/Extra TCEQ Sites.xlsx``
-   provides lat/lon for 18 additional TCEQ CAMS sites.
-4. **Site inventory report** — ``06_HTML_Reports/10_Site_Inventory_Report.html``.
+1. **Pipeline parquet data** — sites that actually have rows in:
+     - data/parquet/pollutants/         (criteria hourly)
+     - data/parquet/pollutant_daily_24hr/ (24hr-only criteria, e.g. site 0060)
+     - data/parquet/vocs_1hr/           (1hr AutoGC VOCs)
+     - data/parquet/vocs_24hr/          (24hr AutoGC VOCs)
+2. **Canonical site name lookup** (SITE_NAMES_CANONICAL in step_01b)
+3. **Coordinate sources** (enhanced_monitoring_sites.csv + Extra TCEQ Sites.xlsx)
+4. **Disabled-site marker** (Williams Park 483551024 — still tracked for completeness)
 
-Each row carries a ``data_status`` tag:
+v0.4.0 changes vs v0.3.7:
+  - Drops 4 TSP-only sites entirely (623, 625, 626, 1609 — decision #8)
+  - Drops 3 CPS Energy fence-line "reference" sites entirely (no data, no purpose)
+  - Drops Von Ormy 480291097 (not in TCEQ pull — decision #18)
+  - Drops `network` column ('TCEQ' is constant — covered by data_source removal)
+  - Drops `pollutants` text column → replaced by THREE new array columns:
+      * pollutant_groups_hourly[]      — criteria pollutants at hourly cadence
+      * pollutant_groups_daily_24hr[]  — anything routed to pollutant_daily_24hr
+      * voc_cadence                    — '1hr', '24hr', 'both', or NULL
 
-    ``active``    — has measurement rows in the pipeline (42 sites)
-    ``reference`` — CPS fence-line monitors; registered but no data (3)
-    ``excluded``  — TCEQ monitors measuring pollutants outside project
-                    scope (Calaveras Lake Park 480291609 — TSP only) (1)
-    ``disabled``  — historically registered but the station is no longer
-                    active (Williams Park 483551024, confirmed per
-                    10_Site_Inventory_Report.html) (1)
-
-Total inventory: 47 (42 active + 3 reference + 1 excluded + 1 disabled).
-
-**Calaveras distinction:** AQSID ``480290059`` is **Calaveras Lake** (EPA
-monitor, full criteria pollutant data in the pipeline). AQSID ``480291609``
-is **Calaveras Lake Park** (a separate TCEQ monitor at the nearby park
-that measures *only* total suspended particulate, TSP). TSP is outside
-the project's scope (we focus on PM₂.₅, PM₁₀, O₃, CO, NOx, SO₂, VOCs),
-so Calaveras Lake Park is tracked as ``excluded``. The two stations are
-distinct physical sites — do NOT deduplicate or alias them.
+Total v0.4.0 registry: ~40 active + 1 disabled (Williams Park) = 41 sites.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Iterable
 
 import pandas as pd
 
-from pipeline.utils.io import PipelineConfig, read_pollutant_csv
+from pipeline.utils.io import PipelineConfig, read_parquet_dataset
 
 
-# Sites known to be reference-only (CPS Energy fence-line monitors)
-REFERENCE_ONLY_SITES = {
-    "480290623": "Gardner Rd. Gas SubStation",
-    "480290625": "Gate 9A CPS",
-    "480290626": "Gate 58 CPS",
-}
-
-# Sites that measure pollutants outside the project scope (TSP only,
-# radiation, etc.). These are tracked in the registry for completeness
-# but their data will never be loaded into the pipeline.
-EXCLUDED_SITES = {
-    "480291609": ("Calaveras Lake Park", "Bexar", 29, "TSP only — outside project scope (PM2.5/PM10/O3/CO/NOx/SO2/VOCs)"),
-}
-
-# Sites that appear in the inventory as historically registered but are
-# confirmed **disabled** per 06_HTML_Reports/10_Site_Inventory_Report.html
-DISABLED_SITES = {
-    "483551024": ("Williams Park", "Nueces", 355),
+# Disabled sites (registered historically but no current data in TCEQ pull)
+DISABLED_SITES: dict[str, dict] = {
+    "483551024": {
+        "site_name": "Williams Park",
+        "county_name": "Nueces",
+        "state_code": 48,
+        "county_code": 355,
+        "site_number": 1024,
+        "notes": "Disabled per 06_HTML_Reports/10_Site_Inventory_Report.html (TSP only, not in TCEQ pull)",
+    },
 }
 
 
-def build_site_registry(cfg: PipelineConfig) -> pd.DataFrame:
-    """Return the canonical 47-site registry as a DataFrame.
-
-    Columns:
-        aqsid, state_code, county_code, site_number, site_name, county_name,
-        network (EPA/TCEQ/BOTH/''),
-        pollutants (;-separated), n_pollutants,
-        first_date, last_date, n_records,
-        data_status,
-            - active     = has measurement data in the pipeline
-            - reference  = CPS fence-line, registered but no data
-            - pending    = needs TCEQ TAMIS download
-            - disabled   = confirmed disabled in inventory report
-            - tceq_alias = TCEQ internal alias; data written under another AQSID
-        co_located_with  (cross-reference AQSID or empty),
-        notes (free text about the row),
-        lat, lon
-    """
-    # ---- 1. Active sites from the pipeline CSVs -------------------------
-    pollutant_dir = cfg.path("processed_pollutant")
-    csvs = sorted(pollutant_dir.glob("*_AllCounties_*.csv"))
-    if not csvs:
-        raise FileNotFoundError(f"No pollutant CSVs found in {pollutant_dir}")
-
-    key_cols = [
-        "aqsid", "state_code", "county_code", "site_number",
-        "site_name", "county_name", "data_source", "pollutant_group",
-        "date_local",
-    ]
-    frames = [read_pollutant_csv(csv)[key_cols].copy() for csv in csvs]
-    allrows = pd.concat(frames, ignore_index=True)
-    allrows["county_name"] = allrows["county_name"].astype(str).str.title()
-
-    active = (
-        allrows.groupby(["aqsid", "state_code", "county_code", "site_number"], dropna=False)
-        .agg(
-            site_name=("site_name", "first"),
-            county_name=("county_name", "first"),
-            networks=("data_source", lambda s: sorted(set(s.dropna()))),
-            pollutants=("pollutant_group", lambda s: sorted(set(s.dropna()))),
-            first_date=("date_local", "min"),
-            last_date=("date_local", "max"),
-            n_records=("date_local", "size"),
-        )
-        .reset_index()
+def _read_aqsids_with_groups(parquet_root: Path, group_col: str = "pollutant_group") -> pd.DataFrame:
+    """Return one-row-per-site with the set of pollutant groups present."""
+    if not parquet_root.exists():
+        return pd.DataFrame(columns=["aqsid", group_col, "site_name", "county_name",
+                                      "state_code", "county_code", "site_number",
+                                      "first_date", "last_date", "n_records"])
+    df = read_parquet_dataset(
+        parquet_root,
+        columns=["aqsid", group_col, "site_name", "county_name",
+                 "state_code", "county_code", "site_number", "date_local"],
     )
-    active["network"] = active["networks"].apply(
-        lambda nets: "BOTH" if len(nets) > 1 else (nets[0] if nets else "")
+    g = (
+        df.groupby("aqsid", dropna=False)
+          .agg(
+              site_name=("site_name", "first"),
+              county_name=("county_name", "first"),
+              state_code=("state_code", "first"),
+              county_code=("county_code", "first"),
+              site_number=("site_number", "first"),
+              groups=(group_col, lambda s: sorted(set(s.dropna()))),
+              first_date=("date_local", "min"),
+              last_date=("date_local", "max"),
+              n_records=("date_local", "size"),
+          )
+          .reset_index()
     )
-    active["n_pollutants"] = active["pollutants"].str.len()
-    active["pollutants"] = active["pollutants"].apply(lambda lst: ";".join(lst))
-    active = active.drop(columns=["networks"])
-    active["data_status"] = "active"
-    active["co_located_with"] = ""
-    active["notes"] = ""
+    return g
 
-    # ---- 2. Reference-only CPS fence-line sites -------------------------
-    ref_rows = []
-    for aqsid, name in REFERENCE_ONLY_SITES.items():
-        ref_rows.append({
-            "aqsid": aqsid,
-            "state_code": 48,
-            "county_code": 29,
-            "site_number": int(aqsid[-4:]),
-            "site_name": name,
-            "county_name": "Bexar",
-            "network": "TCEQ",
-            "pollutants": "",
-            "n_pollutants": 0,
-            "first_date": pd.NaT,
-            "last_date": pd.NaT,
-            "n_records": 0,
-            "data_status": "reference",
-            "co_located_with": "",
-            "notes": "CPS Energy fence-line monitor; registered in inventory, no measurement data",
-        })
 
-    active_ids = set(active["aqsid"])
-
-    # ---- 3. Excluded sites (out-of-scope pollutants) --------------------
-    excluded_rows = []
-    for aqsid, (name, county, county_code, note) in EXCLUDED_SITES.items():
-        if aqsid in active_ids:
-            continue
-        excluded_rows.append({
-            "aqsid": aqsid,
-            "state_code": 48,
-            "county_code": county_code,
-            "site_number": int(aqsid[-4:]),
-            "site_name": name,
-            "county_name": county,
-            "network": "TCEQ",
-            "pollutants": "TSP",
-            "n_pollutants": 0,
-            "first_date": pd.NaT,
-            "last_date": pd.NaT,
-            "n_records": 0,
-            "data_status": "excluded",
-            "co_located_with": "",
-            "notes": note,
-        })
-
-    # ---- 4. Disabled sites ----------------------------------------------
-    disabled_rows = []
-    for aqsid, (name, county, county_code) in DISABLED_SITES.items():
-        disabled_rows.append({
-            "aqsid": aqsid,
-            "state_code": 48,
-            "county_code": county_code,
-            "site_number": int(aqsid[-4:]),
-            "site_name": name,
-            "county_name": county,
-            "network": "TCEQ",
-            "pollutants": "",
-            "n_pollutants": 0,
-            "first_date": pd.NaT,
-            "last_date": pd.NaT,
-            "n_records": 0,
-            "data_status": "disabled",
-            "co_located_with": "",
-            "notes": "Disabled per 06_HTML_Reports/10_Site_Inventory_Report.html",
-        })
-
-    registry = pd.concat(
-        [active, pd.DataFrame(ref_rows), pd.DataFrame(excluded_rows),
-         pd.DataFrame(disabled_rows)],
-        ignore_index=True,
+def _read_vocs_aqsids(parquet_root: Path) -> pd.DataFrame:
+    """One row per site with just aqsid + base attributes (no group)."""
+    if not parquet_root.exists():
+        return pd.DataFrame(columns=["aqsid", "site_name", "county_name",
+                                      "state_code", "county_code", "site_number",
+                                      "first_date", "last_date", "n_records"])
+    df = read_parquet_dataset(
+        parquet_root,
+        columns=["aqsid", "site_name", "county_name",
+                 "state_code", "county_code", "site_number", "date_local"],
     )
+    g = (
+        df.groupby("aqsid", dropna=False)
+          .agg(
+              site_name=("site_name", "first"),
+              county_name=("county_name", "first"),
+              state_code=("state_code", "first"),
+              county_code=("county_code", "first"),
+              site_number=("site_number", "first"),
+              first_date=("date_local", "min"),
+              last_date=("date_local", "max"),
+              n_records=("date_local", "size"),
+          )
+          .reset_index()
+    )
+    return g
 
-    # ---- 5. Coordinate merge (CSV + xlsx) -------------------------------
+
+def _merge_coords(registry: pd.DataFrame, cfg: PipelineConfig) -> pd.DataFrame:
+    """Merge lat/lon from enhanced_monitoring_sites.csv and Extra TCEQ Sites.xlsx."""
     ref_csv_path = cfg.path("site_reference")
-    xlsx_path = cfg.path("tceq_registry")
+    xlsx_path    = cfg.path("tceq_registry")
 
     coord_frames: list[pd.DataFrame] = []
     if ref_csv_path.exists():
@@ -204,7 +118,6 @@ def build_site_registry(cfg: PipelineConfig) -> pd.DataFrame:
                     columns={"latitude": "lat", "longitude": "lon"}
                 )
             )
-
     if xlsx_path.exists():
         try:
             xlsx = pd.read_excel(xlsx_path, sheet_name="Missing Sites")
@@ -220,28 +133,144 @@ def build_site_registry(cfg: PipelineConfig) -> pd.DataFrame:
     if coord_frames:
         coords = (
             pd.concat(coord_frames, ignore_index=True)
-            .drop_duplicates(subset=["aqsid"], keep="first")
+              .drop_duplicates(subset=["aqsid"], keep="first")
         )
         registry = registry.merge(coords, on="aqsid", how="left")
     else:
         registry["lat"] = pd.NA
         registry["lon"] = pd.NA
+    return registry
+
+
+def build_site_registry(cfg: PipelineConfig) -> pd.DataFrame:
+    """Return the canonical v0.4.0 site registry DataFrame.
+
+    Columns:
+        aqsid, state_code, county_code, site_number,
+        site_name, county_name,
+        pollutant_groups_hourly       (TEXT[]) — criteria pollutants at hourly cadence
+        pollutant_groups_daily_24hr   (TEXT[]) — anything in pollutant_daily_24hr
+        voc_cadence                   (TEXT)   — '1hr' | '24hr' | 'both' | NULL
+        n_pollutant_groups            (int)    — len(union of hourly + daily_24hr + (VOCs if voc_cadence))
+        first_date, last_date         (TEXT)
+        n_records                     (int)
+        data_status                   (TEXT)   — 'active' | 'disabled'
+        notes                         (TEXT)
+        lat, lon                      (float)
+    """
+    # ---- Read pipeline data sources ----
+    hourly  = _read_aqsids_with_groups(cfg.path("parquet_pollutants"))
+    daily24 = _read_aqsids_with_groups(cfg.path("parquet_daily_24hr"))
+    voc1    = _read_vocs_aqsids(cfg.path("parquet_vocs_1hr"))
+    voc24   = _read_vocs_aqsids(cfg.path("parquet_vocs_24hr"))
+
+    # ---- Index by aqsid so we can union and merge per-site ----
+    all_aqsids = sorted(
+        set(hourly["aqsid"]) | set(daily24["aqsid"])
+        | set(voc1["aqsid"]) | set(voc24["aqsid"])
+    )
+
+    hourly_idx  = hourly.set_index("aqsid")  if len(hourly)  else None
+    daily24_idx = daily24.set_index("aqsid") if len(daily24) else None
+    voc1_idx    = voc1.set_index("aqsid")    if len(voc1)    else None
+    voc24_idx   = voc24.set_index("aqsid")   if len(voc24)   else None
+
+    rows: list[dict] = []
+    for aqsid in all_aqsids:
+        # Pull base attributes from whichever source has data (hourly first)
+        for src in (hourly_idx, daily24_idx, voc1_idx, voc24_idx):
+            if src is not None and aqsid in src.index:
+                base = src.loc[aqsid].to_dict()
+                break
+        else:
+            continue
+
+        hourly_groups  = hourly_idx.loc[aqsid, "groups"]  if hourly_idx  is not None and aqsid in hourly_idx.index  else []
+        daily24_groups = daily24_idx.loc[aqsid, "groups"] if daily24_idx is not None and aqsid in daily24_idx.index else []
+        in_voc1  = voc1_idx  is not None and aqsid in voc1_idx.index
+        in_voc24 = voc24_idx is not None and aqsid in voc24_idx.index
+
+        voc_cadence = (
+            "both" if (in_voc1 and in_voc24)
+            else ("1hr" if in_voc1
+            else ("24hr" if in_voc24 else None))
+        )
+
+        # First/last date and record count: max across all sources where this site appears
+        first_dates = []
+        last_dates  = []
+        n_records   = 0
+        for src in (hourly_idx, daily24_idx, voc1_idx, voc24_idx):
+            if src is not None and aqsid in src.index:
+                r = src.loc[aqsid]
+                if pd.notna(r["first_date"]):
+                    first_dates.append(r["first_date"])
+                if pd.notna(r["last_date"]):
+                    last_dates.append(r["last_date"])
+                n_records += int(r["n_records"])
+
+        n_groups = (
+            len(set(hourly_groups) | set(daily24_groups))
+            + (1 if voc_cadence else 0)
+        )
+
+        rows.append({
+            "aqsid": aqsid,
+            "state_code": int(base["state_code"]),
+            "county_code": int(base["county_code"]),
+            "site_number": int(base["site_number"]),
+            "site_name": base["site_name"],
+            "county_name": base["county_name"],
+            "pollutant_groups_hourly":     ";".join(hourly_groups),
+            "pollutant_groups_daily_24hr": ";".join(daily24_groups),
+            "voc_cadence": voc_cadence or "",
+            "n_pollutant_groups": n_groups,
+            "first_date": min(first_dates) if first_dates else None,
+            "last_date":  max(last_dates)  if last_dates  else None,
+            "n_records": n_records,
+            "data_status": "active",
+            "notes": "",
+        })
+
+    # ---- Add disabled sites for completeness ----
+    for aqsid, info in DISABLED_SITES.items():
+        if aqsid in {r["aqsid"] for r in rows}:
+            continue
+        rows.append({
+            "aqsid": aqsid,
+            "state_code": info["state_code"],
+            "county_code": info["county_code"],
+            "site_number": info["site_number"],
+            "site_name": info["site_name"],
+            "county_name": info["county_name"],
+            "pollutant_groups_hourly":     "",
+            "pollutant_groups_daily_24hr": "",
+            "voc_cadence": "",
+            "n_pollutant_groups": 0,
+            "first_date": None,
+            "last_date":  None,
+            "n_records": 0,
+            "data_status": "disabled",
+            "notes": info["notes"],
+        })
+
+    registry = pd.DataFrame(rows)
+    registry = _merge_coords(registry, cfg)
 
     # Canonical column order
     cols = [
         "aqsid", "state_code", "county_code", "site_number",
-        "site_name", "county_name", "network",
-        "pollutants", "n_pollutants",
+        "site_name", "county_name",
+        "pollutant_groups_hourly", "pollutant_groups_daily_24hr",
+        "voc_cadence", "n_pollutant_groups",
         "first_date", "last_date", "n_records",
-        "data_status", "co_located_with", "notes",
+        "data_status", "notes",
         "lat", "lon",
     ]
-    # Add lat/lon columns if they don't exist yet (the merge block below adds them)
+    # Add lat/lon if merge skipped (defensive)
     for c in ("lat", "lon"):
         if c not in registry.columns:
             registry[c] = pd.NA
-    registry = registry[[c for c in cols if c in registry.columns]]
-    registry = registry.sort_values(
-        ["data_status", "county_name", "aqsid"]
-    ).reset_index(drop=True)
+    registry = registry[cols]
+    registry = registry.sort_values(["data_status", "county_name", "aqsid"]).reset_index(drop=True)
     return registry

@@ -1,24 +1,38 @@
-"""Step 01 — Build the partitioned pollutant parquet store.
+"""Step 01 — Build the partitioned pollutant parquet store (criteria hourly).
 
-Reads the 7 By_Pollutant CSVs and writes a Hive-partitioned parquet dataset
-partitioned by ``pollutant_group`` and ``year``. Derives ``datetime``, ``year``,
-``month``, ``hour``, and ``season`` columns. Normalizes ``county_name`` to
-title case (fixes the ALL-CAPS COMAL/GUADALUPE/NUECES quirk).
+v0.4.0: this step now runs AFTER step_01b (raw TCEQ → CSV ingestion). All unit
+normalization, A/B concatenation, dedup, and out-of-scope filtering happened
+upstream in 01b, so this step is reduced to:
+
+    1. Read the 6 criteria-pollutant By_Pollutant CSVs (14-col schema).
+    2. Enrich with derived columns (datetime / year / month / hour / season,
+       title-case county_name).
+    3. Write Hive-partitioned parquet by ``pollutant_group / year``.
 
 Inputs:
-    01_Data/Processed/By_Pollutant/*.csv           (~565 MB, 7 files)
+    01_Data/Processed/By_Pollutant/*.csv                (~478 MB, 6 files)
 
 Outputs:
     data/parquet/pollutants/pollutant_group=X/year=YYYY/*.parquet
 
-Expected: ~5.84M rows total. Runtime: ~3–5 minutes on SSD.
+Expected: ~4.7M rows total (criteria hourly only — VOCs go to step_01c).
+Runtime: ~1–3 minutes on SSD.
+
+Historical note (v0.3.7 -> v0.4.0):
+    The old EPA+TCEQ blended ingest happened HERE: this step used to read
+    7 By_Pollutant CSVs (including VOCs), apply per-source ozone unit
+    conversion, and drop the Calaveras Lake TCEQ duplicate feed. None of
+    that is needed in v0.4.0 because:
+      - Data is TCEQ-only, so `data_source` column is gone (decision #3).
+      - Ozone ppb -> ppm conversion is applied in 01b at ingestion time.
+      - VOCs route to their own table via 01c, not here (decision #10).
+      - Calaveras Lake is now a single TCEQ-only feed (no duplicate to drop).
 """
 
 from __future__ import annotations
 
 import sys
 
-import numpy as np
 import pandas as pd
 
 from pipeline.utils.io import (
@@ -38,101 +52,6 @@ _SEASON_MAP = {
     6: "JJA", 7: "JJA", 8: "JJA",
     9: "SON", 10: "SON", 11: "SON",
 }
-
-
-# ---------------------------------------------------------------------------
-# Unit normalization between EPA and TCEQ
-# ---------------------------------------------------------------------------
-# The merged By_Pollutant CSVs were built from two sources with DIFFERENT
-# native units. Verified directly from the raw files under !Final Raw Data/:
-#
-#   EPA AQS Downloads/by_pollutant/*.csv carry `units_of_measure` per row
-#   TCEQ RD files carry AQS `Unit Cd` per row (008=ppb, 001/007=ppm, 105=µg/m³)
-#
-# Per-pollutant verification:
-#   Parameter               EPA        TCEQ       Action
-#   ---------               ---        ----       ------
-#   44201  Ozone            ppm        ppb        multiply TCEQ ×0.001
-#   42101  CO               ppm        (absent)   —
-#   42401  SO2              ppb        ppb        none
-#   42601  NO               ppb        ppb        none
-#   42602  NO2              ppb        ppb        none
-#   42603  NOx              ppb        ppb        none
-#   88101  PM2.5 FRM        µg/m³      —          —
-#   88502  PM2.5            —          µg/m³      none
-#   81102  PM10             µg/m³      (absent)   —
-#
-# Only ozone needs conversion. The canonical unit we standardize to is the
-# EPA unit for each pollutant (ozone→ppm) because the NAAQS thresholds in
-# config.yaml are expressed in those units.
-#
-# The conversion factor is a multiplier applied to sample_measurement for
-# rows matching (parameter_code, data_source).
-
-UNIT_CONVERSIONS: dict[tuple[int, str], tuple[float, str]] = {
-    # (parameter_code, data_source) -> (multiplier, description)
-    (44201, "TCEQ"): (0.001, "ozone ppb → ppm"),
-}
-
-
-# ---------------------------------------------------------------------------
-# Out-of-scope row filters
-# ---------------------------------------------------------------------------
-# Rules for dropping rows that are in the merged By_Pollutant CSVs but
-# should NOT be in the analytical pipeline. Each rule is an AND over
-# column=value matches. Applied in step 01 right after dedup.
-#
-# Historical rationale:
-#
-#   Calaveras Lake TCEQ feed — The EPA monitor at Calaveras Lake (AQSID
-#   480290059) has a parallel TCEQ data feed in the merged CSVs
-#   (~478,846 rows post-dedup across NOx_Family, Ozone, PM2.5, SO2). This
-#   parallel feed partially mirrors the EPA feed and carries some value
-#   conflicts. The project decision (v0.3.3) is to use **only** the EPA
-#   feed for this site and drop the TCEQ parallel entirely. Calaveras
-#   Lake Park (the separate TCEQ physical site at 480291609) measures
-#   only TSP and is out-of-scope — see site_lookup.py:EXCLUDED_SITES.
-
-OUT_OF_SCOPE_FILTERS: list[tuple[str, dict]] = [
-    (
-        "Calaveras Lake (480290059) TCEQ feed — use EPA only",
-        {"aqsid": "480290059", "data_source": "TCEQ"},
-    ),
-]
-
-
-def _drop_out_of_scope(df: pd.DataFrame, log) -> pd.DataFrame:
-    """Apply OUT_OF_SCOPE_FILTERS. Each filter is an AND of column matches."""
-    for desc, match in OUT_OF_SCOPE_FILTERS:
-        mask = pd.Series(True, index=df.index)
-        for col, val in match.items():
-            if col not in df.columns:
-                mask = pd.Series(False, index=df.index)
-                break
-            mask &= (df[col].astype(str) == str(val))
-        n = int(mask.sum())
-        if n:
-            df = df.loc[~mask].copy()
-            log.info(f"  filter: {desc}  ({n:,} rows dropped)")
-    return df
-
-
-def _normalize_units(df: pd.DataFrame, log) -> pd.DataFrame:
-    """Apply per-(parameter, source) unit conversions and log row counts.
-
-    This runs before any downstream aggregation so NAAQS computation, daily
-    means, etc. all see a single consistent unit per pollutant.
-    """
-    if "parameter_code" not in df.columns or "data_source" not in df.columns:
-        return df
-
-    for (param, src), (factor, desc) in UNIT_CONVERSIONS.items():
-        mask = (df["parameter_code"] == param) & (df["data_source"] == src)
-        n = int(mask.sum())
-        if n:
-            df.loc[mask, "sample_measurement"] = df.loc[mask, "sample_measurement"] * factor
-            log.info(f"  unit normalize: {desc}  ({n:,} rows × {factor})")
-    return df
 
 
 def _enrich(df: pd.DataFrame) -> pd.DataFrame:
@@ -166,10 +85,22 @@ def main(cfg: PipelineConfig | None = None) -> bool:
     out_dir = ensure_dir(cfg.path("parquet_pollutants"))
     csvs = sorted(in_dir.glob("*_AllCounties_*.csv"))
     if not csvs:
-        log.error(f"No CSVs in {in_dir}")
+        log.error(f"No CSVs in {in_dir} — run step 01b first")
         return False
 
-    log.info(f"Found {len(csvs)} pollutant CSVs → {out_dir}")
+    # Defensive: skip any leftover VOC CSV if one exists (shouldn't, but
+    # v0.3.7 used to write VOCs_AllCounties_*.csv here and the file might
+    # linger in a partial-upgrade environment).
+    voc_in_pollutant_dir = [c for c in csvs if "VOC" in c.name.upper()]
+    if voc_in_pollutant_dir:
+        log.warning(
+            f"Skipping {len(voc_in_pollutant_dir)} legacy VOC CSVs in {in_dir}: "
+            f"{[c.name for c in voc_in_pollutant_dir]}. "
+            "VOCs are written to 01_Data/Processed/By_VOC/ in v0.4.0."
+        )
+        csvs = [c for c in csvs if c not in voc_in_pollutant_dir]
+
+    log.info(f"Found {len(csvs)} criteria pollutant CSVs → {out_dir}")
 
     total_in = 0
     total_out = 0
@@ -177,18 +108,6 @@ def main(cfg: PipelineConfig | None = None) -> bool:
         with step_timer(log, f"process {csv.name}"):
             df = read_pollutant_csv(csv)
             n_in = len(df)
-            # Drop exact full-row duplicates introduced by the upstream
-            # TCEQ/EPA merge. These are safe — identical rows carry zero
-            # information. Non-exact duplicates (same key, different
-            # measurement) are left for downstream averaging in NAAQS / daily
-            # aggregation steps.
-            n_dedup = len(df)
-            df = df.drop_duplicates().reset_index(drop=True)
-            n_after_dedup = len(df)
-            if n_dedup != n_after_dedup:
-                log.info(f"  dropped {n_dedup - n_after_dedup:,} exact-duplicate rows")
-            df = _drop_out_of_scope(df, log)
-            df = _normalize_units(df, log)
             df = _enrich(df)
             n_out = len(df)
             write_parquet_partitioned(
