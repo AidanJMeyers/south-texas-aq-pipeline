@@ -9,6 +9,37 @@
 >
 > **Tools:** Google Colab (primary) → Neon Postgres (SQL queries) → pipeline parquet store (local heavy lifting)
 
+!!! success "v0.4.0 milestone — TCEQ-only rebuild COMPLETE (2026-05-28)"
+
+    Phase 1 (refresh) and pipeline modernization landed **5 days ahead of
+    schedule**. The dataset is now:
+
+    - **TCEQ-only** for every site (EPA hybrid retired) — uniform hourly
+      cadence, matching weather covariates, no more EPA/TCEQ unit
+      mismatches.
+    - **41 active sites** (down from 47 — TSP-only sites dropped, Von Ormy
+      missing from the pull).
+    - **10 Neon tables** in the `aq` schema, ~11.5M rows, ~2.4 GB.
+    - **New tables:** `aq.vocs_1hr` (4.96M rows), `aq.vocs_24hr` (97K rows),
+      `aq.pollutant_daily_24hr` (636 rows — site 0060 PM10),
+      `aq.parameter_reference` (57 codes with HAP flags).
+    - **Dropped tables:** `aq.aq_weather_daily` (handle joins in user code).
+    - **NAAQS values match v0.3.7 archive** for top-3 ozone sites exactly;
+      other sites differ ≤0.57 ppb (additional 2025 data from the 2026-05-21
+      pull).
+    - **Full pipeline rebuild** runs in ~9 minutes (vs 5+ hours in v0.3.7).
+    - **Postgres reload** via COPY runs in ~54 minutes (vs 5.5 hr broken
+      `to_sql` in v0.3.7).
+
+    📋 [Migration guide](./v0_4_0_migration.md) · 📊 [Release report](./v0_4_0_release_report.md)
+
+    The v0.3.7 EPA-blended schema is preserved indefinitely as
+    `aq_v0_3_7_epa.*` for fallback queries and historical comparison.
+
+    **Downstream impact on the timeline below:** Phase 1 (refresh) is
+    DONE. Descriptives (Phase 1 second half) can proceed immediately
+    against the new schema — there are no remaining pipeline blockers.
+
 ---
 
 ## Phase overview
@@ -33,8 +64,8 @@ gantt
     axisFormat %b %d
 
     section Phase 1 · Refresh & describe
-    Final EPA + TCEQ data refresh (2025 finalized) :crit, p1a, 2026-05-01, 1w
-    Descriptives + outlier flagging                :p1b, 2026-05-01, 1w
+    TCEQ-only v0.4.0 rebuild (DONE 5/28)           :done, p1a, 2026-05-01, 4w
+    Descriptives + outlier flagging                :p1b, 2026-05-28, 1w
 
     section Phase 2 · Imputation
     Method evaluation                              :p2a, 2026-05-08, 1w

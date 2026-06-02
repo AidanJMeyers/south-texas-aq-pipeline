@@ -164,6 +164,9 @@ extra:
 # -----------------------------------------------------------------------------
 nav:
   - Home: index.md
+  - "v0.4.0 release":
+      - Migration guide: v0_4_0_migration.md
+      - Release report: v0_4_0_release_report.md
   - Project:
       - 1. Overview: 01_overview.md
       - 2. Data sources: 02_data_sources.md

@@ -8,7 +8,7 @@ hide:
 # South Texas Air Quality Data Pipeline
 
 <span class="brand-badge">Melaram Lab</span>
-<span class="brand-badge brand-badge-accent">v0.3.4</span>
+<span class="brand-badge brand-badge-accent">v0.4.0</span>
 
 !!! info "About this project"
 
@@ -22,6 +22,25 @@ hide:
     **Collaborators:** L. Jin, Donald E. Warden
     **Contact:** [aidan.meyers@tamucc.edu](mailto:aidan.meyers@tamucc.edu) · [www.melaramlab.com](https://www.melaramlab.com)
     **License:** MIT
+
+!!! warning "v0.4.0 schema change (2026-05-28) — TCEQ-only migration"
+
+    The Neon `aq` schema has been completely rebuilt from TCEQ-only
+    sources. EPA AQS API integration is retired. Key changes for query
+    authors:
+
+    - `data_source` column **dropped** from all tables (all data TCEQ-sourced)
+    - **VOCs split** into `aq.vocs_1hr` and `aq.vocs_24hr` (no longer in `aq.pollutant_hourly`)
+    - Site 480290060 (Palo Alto) PM10 routed to new `aq.pollutant_daily_24hr` table
+    - `aq.aq_weather_daily` **dropped** — join `pollutant_hourly` + `weather_hourly` in your query
+    - New: `aq.parameter_reference` (57 AQS codes with HAP flags + chemical families)
+    - Site registry trimmed 47 → 42 (TSP-only sites + Von Ormy removed)
+
+    v0.3.7 data is preserved indefinitely at `aq_v0_3_7_epa.*` as a fallback.
+
+    👉 [**Read the v0.4.0 migration guide**](./v0_4_0_migration.md) for full
+    rationale, the 19 architectural decisions, example queries, and rollback
+    procedure.
 
 ## Pipeline schematic
 
@@ -44,60 +63,65 @@ flowchart TD
 
     subgraph INPUTS["&nbsp;RAW INPUTS (read-only)&nbsp;"]
         direction LR
-        A1["<b>EPA AQS Data Mart</b><br/>29 sites · 2015–2025"]
-        A2["<b>TCEQ TAMIS</b><br/>14 sites · 2016–2025"]
-        A3["<b>OpenWeather API</b><br/>15 stations · 2015–2025"]
+        A1["<b>TCEQ TAMIS</b><br/>51 files · 41 sites · 2015–2025<br/>(9.77M raw rows)"]
+        A3["<b>OpenWeather + Solcast</b><br/>15 stations · 2015–2025"]
         A4["<b>Extra TCEQ Sites.xlsx</b><br/>site coordinates"]
     end
 
-    subgraph PIPELINE["&nbsp;pipeline/run_pipeline.py · ~20 min&nbsp;"]
+    subgraph PIPELINE["&nbsp;pipeline/run_pipeline.py · ~9 min&nbsp;"]
         direction TB
         S0["<b>step_00</b> · validate raw"]
-        S1["<b>step_01</b> · pollutant parquet<br/>dedup · unit normalize · filter"]
+        S1b["<b>step_01b</b> · ingest TCEQ TXT<br/>A/B concat · route · normalize"]
+        S1["<b>step_01</b> · criteria parquet"]
+        S1c["<b>step_01c</b> · VOC + daily_24hr parquet"]
         S2["<b>step_02</b> · weather parquet"]
         S3["<b>step_03</b> · NAAQS design values<br/>40 CFR Part 50"]
         S4["<b>step_04</b> · daily + monthly<br/>75% completeness rule"]
-        S5["<b>step_05</b> · Haversine AQ ↔ WX"]
-        S6["<b>step_06</b> · CSV + RDS export"]
-        S7["<b>step_07</b> · PostgreSQL load"]
+        S5b["<b>step_05b</b> · site_registry +<br/>parameter_reference CSVs"]
+        S6["<b>step_06</b> · CSV verify + RDS"]
+        S7["<b>step_07</b> · PostgreSQL load via COPY"]
 
-        S0 --> S1 --> S2 --> S3 --> S4 --> S5 --> S6 --> S7
+        S0 --> S1b --> S1 --> S1c --> S2 --> S3 --> S4 --> S5b --> S6 --> S7
     end
 
     subgraph OUTPUTS["&nbsp;ANALYSIS-READY OUTPUTS&nbsp;"]
         direction LR
-        O1["<b>data/parquet/</b><br/>fast local analytics<br/>~7.7M rows"]
+        O1["<b>data/parquet/</b><br/>7 partitioned stores<br/>~10.7M rows"]
         O2["<b>data/csv/</b><br/>flat exports<br/>R + Colab users"]
-        O3["<b>PostgreSQL (Neon)</b><br/>aq schema · 5 tables<br/>SQL + BI access"]
+        O3["<b>PostgreSQL (Neon)</b><br/>aq schema · 10 tables<br/>~11.5M rows · 2.4 GB"]
     end
 
     A1 --> S0
-    A2 --> S0
     A3 --> S2
-    A4 --> S5
+    A4 --> S5b
 
+    S1 --> O1
+    S1c --> O1
     S2 --> O1
-    S5 --> O1
     S6 --> O2
     S7 --> O3
 
-    class A1,A2,A3,A4 input
-    class S0,S1,S2,S3,S4,S5,S6,S7 step
+    class A1,A3,A4 input
+    class S0,S1b,S1,S1c,S2,S3,S4,S5b,S6,S7 step
     class O1,O2 output
     class O3 db
 ```
 
-!!! abstract "At-a-glance numbers"
+!!! abstract "At-a-glance numbers (v0.4.0)"
 
     | Count | What |
     |---:|---|
-    | **42** | Active monitoring sites with in-scope data |
+    | **41** | Active monitoring sites with in-scope data |
     | **13** | South Texas counties covered |
     | **15** | OpenWeather stations used for meteorological pairing |
-    | **7.7M** | Hourly pollutant rows in parquet (post-dedup + filters) |
-    | **1.47M** | Hourly weather rows in parquet |
-    | **764** | NAAQS design values computed (9 metrics × 40 sites × 11 years) |
-    | **~20 min** | End-to-end pipeline runtime on a laptop SSD |
+    | **51** | TCEQ TAMIS files ingested in the 2026-05-21 pull |
+    | **57** | Distinct AQS parameter codes (9 criteria + 47 VOCs + 1 sparse), 10 are HAPs |
+    | **4.71M** | Criteria-pollutant hourly rows in `aq.pollutant_hourly` |
+    | **5.06M** | VOC hourly rows (`aq.vocs_1hr` + `aq.vocs_24hr`) |
+    | **1.47M** | Hourly weather rows |
+    | **759** | NAAQS design values (9 metrics × 39 sites × 11 years) |
+    | **~9 min** | End-to-end pipeline runtime on a laptop SSD |
+    | **~54 min** | Postgres reload time via COPY (~11.5M rows / 10 tables) |
 
 ## :material-download: Download the pipeline inputs
 
@@ -263,6 +287,8 @@ Already have the data downloaded? Pick your tool:
 
 | Version | Date | Summary |
 |---|---|---|
+| **0.4.0** | **2026-05-28** | **TCEQ-only rebuild.** EPA AQS retired; new schema with `vocs_1hr`/`vocs_24hr`/`pollutant_daily_24hr`/`parameter_reference` tables; `data_source` column dropped (15 → 14 cols); `aq_weather_daily` dropped; step_07 rewritten with COPY (54 min vs 5.5 hr); full build in 9 min. See [migration guide](./v0_4_0_migration.md). |
+| 0.3.7 | 2026-04-29 | TCEQ refresh outcomes documented + EPA refresh site_name fix (preserved as `aq_v0_3_7_epa.*`) |
 | 0.3.5 | 2026-04-22 | Hourly tables loaded to Neon (~2.3 GB total); Data API + Neon Auth enabled; analysis timeline restructured |
 | 0.3.4 | 2026-04-15 | MkDocs site with GitHub Pages deployment + Melaram Lab branding |
 | 0.3.3 | 2026-04-15 | Calaveras Lake TCEQ feed filter, Calaveras Lake Park officially retired (TSP-only) |

@@ -1,50 +1,63 @@
 # 04 — Pipeline Architecture
 
-## Overview
+> **v0.4.0 update (2026-05-28):** Architecture rewritten for TCEQ-only.
+> New steps `01b` (raw TCEQ ingest), `01c` (VOC + daily_24hr parquet),
+> `05b` (metadata CSVs); step `05` (combined AQ+weather) removed. See the
+> [migration guide](./v0_4_0_migration.md) for the 19 architectural
+> decisions that drove this rewrite.
+
+## Overview (v0.4.0)
 
 ```
 ┌──────────────────────── INPUTS (read-only, immutable) ─────────────────────┐
-│  !Final Raw Data/EPA AQS Downloads/*.csv                                    │
-│  !Final Raw Data/TCEQ Data - Missing Sites/*.txt                            │
-│  !Final Raw Data/Extra TCEQ Sites.xlsx                                      │
-│  01_Data/Processed/By_Pollutant/*.csv        (7 merged files, 565 MB)       │
-│  01_Data/Processed/Meteorological/                                          │
-│    Weather_Irradiance_Master_2015_2025.csv   (440 MB)                       │
-│    AQ_Weather_SiteMapping.csv                                               │
-│  01_Data/Reference/enhanced_monitoring_sites.csv                            │
+│  !Final Raw Data/TCEQ Downloads 5-21-26/Confirmed - AQS Ascending/         │
+│    51 .txt files in AQS RD v1.6 format (9.77M raw rows)                    │
+│      ├── 41 per-site files (with A/B splits for 2 sites)                   │
+│      └── 10 county-level VOC AutoGC files (1hr + 24hr cadences)            │
+│  !Final Raw Data/Extra TCEQ Sites.xlsx          (site coordinates)         │
+│  01_Data/Processed/Meteorological/                                         │
+│    Weather_Irradiance_Master_2015_2025.csv      (440 MB)                   │
+│  01_Data/Reference/enhanced_monitoring_sites.csv                           │
+│  !Archive_v0_3_7/inventory/parameter_reference.csv (57 AQS codes)          │
 └────────────────────────────────────────────────────────────────────────────┘
                                   │
-                     python pipeline/run_pipeline.py
+                     python pipeline/run_pipeline.py   (~9 min total)
                                   │
-   ┌──────────────┬───────────────┼───────────────┬──────────────┬────────────┐
-   ▼              ▼               ▼               ▼              ▼            ▼
-  00          01                02              03             04           05
- validate   pollutant→parquet  weather→parquet   NAAQS        daily aggs    merge AQ+WX
-   │          (dedupe + unit     (rename + ensure  (per-site      (75% rule  (Haversine
-   │           normalization)    stable aliases)   design values) completeness) pairing)
-   │              │                │                │              │          │
-   └──────────────┴────────┬───────┴────────────────┴──────────────┴──────────┘
-                           ▼
-                         06 export
-                         (CSV verify + optional R .rds)
-                           │
-                           ▼
-                         07 Postgres
-                         (Neon free tier, aq schema)
+   ┌──────┬──────┬──────┬──────┬──────┬──────┬──────┬──────┬──────┐
+   ▼      ▼      ▼      ▼      ▼      ▼      ▼      ▼      ▼      ▼
+  00    01b     01    01c     02     03     04    05b    06     07
+ valid │TCEQ  criteria  VOC + weather NAAQS  daily +  site_reg  CSV  Postgres
+       │TXT → parquet  daily         design  monthly  + param   verify  COPY
+       │CSV  (drop     parquet       values  aggs     reference        (Neon
+       │     dups,     stores                                          aq schema)
+       │     normalize
+       │     units)
+  00 → 01b → 01 → 01c → 02 → 03 → 04 → 05b → 06 → 07
 
 ┌──────────────────────── OUTPUTS (pipeline-managed) ────────────────────────┐
-│  data/parquet/pollutants/     Hive-partitioned by group, year              │
-│  data/parquet/weather/        Hive-partitioned by location, year           │
-│  data/parquet/naaqs/          Design values per (site, year)               │
-│  data/parquet/daily/          Daily + monthly aggregates                   │
-│  data/parquet/combined/       Merged AQ + daily weather                    │
-│  data/csv/                    Flat CSV exports                             │
-│  data/rds/                    R-native bundles (optional, step 06)         │
-│  data/_logs/                  Per-step log files                           │
-│  data/_validation/            Validation report JSON                       │
-│  Postgres (aq schema)         5 analysis-ready tables in Neon              │
+│  01_Data/Processed/By_Pollutant/*.csv          6 criteria CSVs (14 cols)   │
+│  01_Data/Processed/By_VOC/vocs_{1hr,24hr}.csv  VOC long-format             │
+│  01_Data/Processed/By_Pollutant_Daily/*.csv    Site 0060 PM10 24hr-only    │
+│  data/parquet/pollutants/                      Hive part. by group, year   │
+│  data/parquet/vocs_1hr/                        Hive part. by chemical, yr  │
+│  data/parquet/vocs_24hr/                       Hive part. by chemical, yr  │
+│  data/parquet/pollutant_daily_24hr/            Hive part. by group, yr     │
+│  data/parquet/weather/                         Hive part. by location, yr  │
+│  data/parquet/naaqs/                           Design values per (site,yr) │
+│  data/parquet/daily/                           Daily + monthly aggregates  │
+│  data/csv/site_registry.csv                    Built fresh by step 05b     │
+│  data/csv/parameter_reference.csv              57 AQS codes                │
+│  data/csv/{naaqs_design_values,daily_pollutant_means}.csv                  │
+│  Postgres aq schema                            10 analysis-ready tables    │
+│                                                 ~11.5M rows / ~2.4 GB      │
 └────────────────────────────────────────────────────────────────────────────┘
 ```
+
+Step 05 (`step_05_merge_aq_weather`) was retired in v0.4.0 — the combined
+`aq_weather_daily` table is no longer generated (decision #13). Pollutant +
+weather joins are now handled directly in user code via SQL against
+`aq.pollutant_hourly` ⨝ `aq.weather_hourly` (or against the daily
+aggregates).
 
 ## Design principles
 
@@ -72,26 +85,86 @@
 
 ### Step 00 — Validate Raw Data
 **Script:** `pipeline/step_00_validate_raw.py`
-**Reads:** All 7 By_Pollutant CSVs + weather master + site mapping
+**Reads:** All 6 criteria By_Pollutant CSVs (post-01b) + weather master
 **Writes:** `data/_validation/validation_report.json`
 **Runtime:** ~60 seconds
 
-Runs 34 integrity checks. Exits nonzero on any error-severity failure so
-downstream steps can't proceed. Known data quirks (exact-row duplicates,
-SO₂ intra-POC value conflicts, missing sites vs. spec) are warnings.
+Runs integrity checks on the canonical-format CSVs produced by step 01b.
+Exits nonzero on any error-severity failure so downstream steps can't
+proceed.
 
-**Checks performed:**
-- 15-column schema on every pollutant CSV
-- Row count within ±1% of expected for each file
-- Total rows across all 7 pollutants (~5.84M)
+**Checks performed (v0.4.0):**
+- 14-column schema on every criteria pollutant CSV (NO `data_source`)
+- Row count within ±2% of expected for each file (loosened during stabilization)
+- Total rows across all 6 criteria pollutants computed dynamically from config
 - Unique AQS IDs (expected 41 active; warning if <36)
 - 13 unique counties
-- 7 pollutant groups
+- 6 pollutant groups (VOCs live in their own tables now)
 - No duplicate `(aqsid, date, time, parameter, poc)` tuples (warning)
-- Per-pollutant date range falls within study window
+- Per-pollutant date range falls within study window (2015-01-01 → 2025-12-31)
 - Weather master row count (~1.47M)
 - 15 unique weather stations
-- Site mapping file has required columns
+
+### Step 01b — Ingest Raw TCEQ TAMIS (NEW in v0.4.0)
+**Script:** `pipeline/step_01b_ingest_tceq_raw.py`
+**Reads:** 51 `.txt` files under `!Final Raw Data/TCEQ Downloads 5-21-26/Confirmed - AQS Ascending/`
+**Writes:**
+- `01_Data/Processed/By_Pollutant/{CO,SO2,NOx_Family,Ozone,PM10,PM2.5}_AllCounties_2015_2025.csv` (14-col)
+- `01_Data/Processed/By_VOC/vocs_{1hr,24hr}_*.csv` (NEW)
+- `01_Data/Processed/By_Pollutant_Daily/pollutant_daily_24hr_2015_2025.csv` (NEW)
+
+**Runtime:** ~4.7 minutes (9.77M rows parsed from 51 TXT files)
+
+What it does:
+
+1. Parses each TXT file in AQS RD v1.6 transaction format (pipe-delimited,
+   28 fields, 11-row header).
+2. Detects file type: `site` (one AQSID per file) vs `voc` (county-level
+   AutoGC bundle, multiple sites inside).
+3. Concatenates A/B file splits for sites with multi-year data that exceeded
+   TAMIS's per-download cap (Heritage MS 480290622, Brownsville 480610006).
+4. Routes each row to its destination bucket via three rules in order:
+   - **VOC parameter codes (43xxx / 45xxx) in a county VOC file** → `vocs_1hr` or
+     `vocs_24hr` (cadence from filename)
+   - **Sample Duration Code = 7 or X** → `pollutant_daily_24hr` (catches
+     site 0060 + any future 24hr-only feed)
+   - **Everything else (criteria pollutants, hourly cadence)** →
+     `pollutant_<group>` CSV
+5. Applies per-row transformations:
+   - Ozone (44201): ppb → ppm × 0.001
+   - aqsid built from zero-padded state+county+site
+   - county_name from `COUNTY_NAMES` lookup
+   - site_name from `SITE_NAMES_CANONICAL` lookup
+   - pollutant_group from `PARAM_GROUP` lookup
+   - `data_source` column **not written** (dropped in v0.4.0)
+6. Defensive drops: 6 excluded AQSIDs (4 TSP sites, Von Ormy, Williams Park).
+7. Dedupes on `(aqsid, date_local, time_local, parameter_code, poc)` within each bucket.
+
+### Step 01 — Build Criteria Pollutant Parquet Store
+**Script:** `pipeline/step_01_build_pollutant_store.py`
+**Reads:** `01_Data/Processed/By_Pollutant/*.csv`
+**Writes:** `data/parquet/pollutants/` (partitioned by `pollutant_group`, `year`)
+**Runtime:** ~1 minute
+
+Simplified in v0.4.0 — unit conversions and out-of-scope filtering are now
+done upstream in 01b. This step just enriches with `datetime`/`year`/`month`/
+`hour`/`season`/`county_name` (title-case) and writes the partitioned parquet.
+
+### Step 01c — Build Auxiliary Parquet Stores (NEW in v0.4.0)
+**Script:** `pipeline/step_01c_build_aux_stores.py`
+**Reads:** `By_VOC/*.csv` + `By_Pollutant_Daily/*.csv`
+**Writes:**
+- `data/parquet/vocs_1hr/` (partitioned by `pollutant_name`, `year`)
+- `data/parquet/vocs_24hr/` (partitioned by `pollutant_name`, `year`)
+- `data/parquet/pollutant_daily_24hr/` (partitioned by `pollutant_group`, `year`)
+
+**Runtime:** ~1 minute
+
+VOC stores partition by `pollutant_name` (chemical species, e.g. "Benzene",
+"Ethylene") rather than `pollutant_group` because every VOC row has
+`pollutant_group="VOCs"` — that would be one giant partition. Splitting by
+chemical keeps partitions small and lets downstream queries push down
+`pollutant_name="Benzene"` filters cheaply.
 
 ### Step 01 — Pollutant Parquet Store
 **Script:** `pipeline/step_01_build_pollutant_store.py`

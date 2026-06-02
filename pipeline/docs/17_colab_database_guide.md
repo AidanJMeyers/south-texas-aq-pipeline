@@ -6,26 +6,45 @@ the **Neon Data API** (for lightweight HTTP-based access). Includes
 worked examples against every table, performance tips, and copy-paste
 recipes for common analytical workflows.
 
-> **Database:** Neon Postgres 16 · project `south-texas-aq` · schema `aq`
+> **Database:** Neon Postgres 16 · project `south-texas-aq` (`aged-salad-62359207`) · schemas `aq` (v0.4.0) and `aq_v0_3_7_epa` (historical)
 > **Plan:** Launch ($19/mo, 10 GB storage, 300 CU-hours/month included)
 > **Region:** AWS us-east-1
-> **Last updated:** 2026-04-22
+> **Last updated:** 2026-05-28 (v0.4.0 release)
+
+!!! warning "v0.4.0 schema change — read this before adapting v0.3.7 queries"
+
+    - `data_source` column **dropped** from all tables (all data TCEQ-sourced now)
+    - **VOCs split** into `aq.vocs_1hr` and `aq.vocs_24hr` — not in `aq.pollutant_hourly` anymore
+    - Site 480290060 (Palo Alto) PM10 → `aq.pollutant_daily_24hr` (24hr-only sampler)
+    - **`aq.aq_weather_daily` DROPPED** — join `aq.pollutant_hourly` ⨝ `aq.weather_hourly` directly
+    - NEW: `aq.parameter_reference` (57 AQS codes with HAP flags)
+    - Site registry trimmed 47 → 42 (TSP-only sites + Von Ormy removed; CPS fence-line refs removed)
+    - **`aq_v0_3_7_epa.*` schema still queryable** if you need the old EPA-blended data as a fallback
+
+    Full migration guide: [v0.4.0 migration](./v0_4_0_migration.md).
 
 ---
 
-## What's in the database
+## What's in the database (v0.4.0)
 
-After the pipeline runs, the `aq` schema contains:
+After the pipeline runs, the `aq` schema contains 10 tables:
 
-| Table | Rows | Size | Use this for |
+| Table | Rows | Size on Neon | Use this for |
 |---|---:|---:|---|
-| `aq.site_registry` | 47 | <100 kB | Site metadata, network membership, status, coordinates |
-| `aq.naaqs_design_values` | 764 | 200 kB | Per-site, per-year, per-metric NAAQS compliance values |
-| `aq.pollutant_monthly` | ~11k | 2 MB | Quick monthly trends, low-resolution dashboards |
-| `aq.pollutant_daily` | ~390k | 70 MB | Daily aggregates with completeness flags (most common) |
-| `aq.aq_weather_daily` | ~390k | 130 MB | Daily pollutants joined to nearest-station weather |
-| `aq.pollutant_hourly` | ~7.7M | ~2.5 GB | Hourly resolution; diurnal cycles, episode analysis |
-| `aq.weather_hourly` | ~1.47M | ~900 MB | Hourly weather organized by original station name |
+| `aq.site_registry` | 42 | 32 kB | Site metadata; pollutant_groups arrays; voc_cadence; lat/lon |
+| `aq.parameter_reference` | 57 | 48 kB | AQS code → name + chemical family + HAP flag + units (NEW) |
+| `aq.naaqs_design_values` | 759 | 288 kB | Per-site, per-year, per-metric NAAQS compliance values |
+| `aq.pollutant_monthly` | 6,804 | 1.2 MB | Quick monthly trends, low-resolution dashboards |
+| `aq.pollutant_daily` | 201,290 | 35 MB | Daily aggregates with completeness flags (most common) |
+| `aq.pollutant_daily_24hr` | 636 | 264 kB | 24hr-only readings (Palo Alto 480290060 PM10) (NEW) |
+| `aq.pollutant_hourly` | 4,710,663 | 841 MB | **Criteria pollutants only.** Hourly; diurnal/episode analysis |
+| `aq.vocs_1hr` | 4,964,065 | 877 MB | AutoGC 1hr VOC measurements (5 sites × 46 chemicals) (NEW) |
+| `aq.vocs_24hr` | 97,244 | 17 MB | AutoGC 24hr VOC measurements (8 sites × 48 chemicals) (NEW) |
+| `aq.weather_hourly` | 1,470,049 | 630 MB | Hourly weather organized by station name (UNCHANGED from v0.3.7) |
+
+The legacy v0.3.7 EPA-blended data lives at `aq_v0_3_7_epa.*` (7 tables,
+~2.2 GB total). Same column names as before; query it just like `aq.*`
+if you need a v0.3.7 comparison.
 
 For column-level schemas see [03_data_schemas.md](./03_data_schemas.md).
 
@@ -42,9 +61,11 @@ more than ~100 rows back).
 #### Step 1 — Get your connection string
 
 The connection string lives in your Neon console:
-**https://console.neon.tech/app/projects/aged-salad-62359207** →
+**[console.neon.tech/app/projects/aged-salad-62359207](https://console.neon.tech/app/projects/aged-salad-62359207)** →
 "Connection Details" tab → copy the URL that starts with
-`postgresql://...`
+`postgresql://...`. The exact same URL works against both `aq.*` (v0.4.0)
+and `aq_v0_3_7_epa.*` (historical) — the schema is selected per query, not
+per connection.
 
 It looks like:
 ```
