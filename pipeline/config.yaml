@@ -212,8 +212,8 @@ postgres:
       indexes: ["aqsid", "date_local", "pollutant_group"]
 
     - name:   "pollutant_daily_24hr"
-      source: "parquet"
-      path:   "data/parquet/pollutant_daily_24hr/pollutant_daily_24hr.parquet"
+      source: "parquet_dir"
+      path:   "data/parquet/pollutant_daily_24hr"
       indexes: ["aqsid", "date_local", "pollutant_group"]
 
     - name:   "pollutant_monthly"

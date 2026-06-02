@@ -4,6 +4,21 @@ Reproducible Colab/Jupyter notebooks for the South Texas Air Quality
 project. Each notebook is **self-contained** — open it in Colab, set up
 the `AQ_POSTGRES_URL` Colab secret once, then run end-to-end.
 
+> **⚠ v0.4.0 schema change (2026-05-28):** The Neon `aq` schema has been
+> rebuilt from TCEQ-only sources. Old v0.3.7 data is preserved at
+> `aq_v0_3_7_epa.*`. Key changes for query authors:
+>
+> - `data_source` column **dropped** from all tables (all data is TCEQ-sourced)
+> - **VOCs split** into `aq.vocs_1hr` and `aq.vocs_24hr` (no longer in `aq.pollutant_hourly`)
+> - Site 480290060 (Palo Alto) PM10 routed to new `aq.pollutant_daily_24hr` table
+> - `aq.aq_weather_daily` **dropped** — join `pollutant_hourly` + `weather_hourly` directly in your query
+> - New: `aq.parameter_reference` (57 AQS codes with HAP flags + chemical families)
+> - Site registry trimmed 47 → 42 (TSP sites + Von Ormy removed)
+>
+> Full migration guide: [`pipeline/docs/v0_4_0_migration.md`](../pipeline/docs/v0_4_0_migration.md).
+> If your notebook queries break, the v0.3.7 schema is still queryable at
+> `aq_v0_3_7_epa.*` as a fallback.
+
 ## Index
 
 | File | Author | Purpose | Open |

@@ -2,6 +2,88 @@
 
 All notable changes to the South Texas AQ data pipeline are documented here.
 
+## [0.4.0] — 2026-05-28
+
+**TCEQ-only migration.** Complete rewrite of ingestion, storage schema, and
+Postgres loader. EPA AQS API integration retired; v0.3.7 EPA-blended data
+preserved indefinitely in `aq_v0_3_7_epa` schema. See
+[`pipeline/docs/v0_4_0_migration.md`](docs/v0_4_0_migration.md) for the full
+migration guide and the 19 architectural decisions.
+
+### Added (database)
+
+- **New tables in `aq.*` schema:**
+  * `aq.parameter_reference` — 57 AQS codes (9 criteria + 47 VOCs + 1 sparse),
+    with `chemical_family`, `pollutant_group`, `default_units`, `naaqs_regulated`,
+    `is_hap` columns. Sourced from EPA AQS code tables.
+  * `aq.vocs_1hr` — 4,964,065 rows, 5 sites, 46 chemicals (AutoGC 1hr cadence)
+  * `aq.vocs_24hr` — 97,244 rows, 8 sites, 48 chemicals (AutoGC 24hr cadence)
+  * `aq.pollutant_daily_24hr` — 636 rows, site 0060 PM10 today; extensible
+    to any future Sample Duration Code 7/X feed
+- **`aq.site_registry` v0.4.0** — three new columns replace the v0.3.7
+  `pollutants` string:
+  * `pollutant_groups_hourly TEXT[]` — criteria pollutants at hourly cadence
+  * `pollutant_groups_daily_24hr TEXT[]` — anything routed to pollutant_daily_24hr
+  * `voc_cadence TEXT` — `'1hr' | '24hr' | 'both' | ''`
+
+### Added (pipeline)
+
+- **`step_01b_ingest_tceq_raw.py`** (NEW) — raw TCEQ TAMIS RD → canonical
+  14-col CSVs. Concatenates A/B splits, routes by sample-duration-code,
+  applies ozone ppb → ppm, drops 6 excluded AQSIDs defensively.
+- **`step_01c_build_aux_stores.py`** (NEW) — builds the 3 new parquet stores
+  (`vocs_1hr`, `vocs_24hr`, `pollutant_daily_24hr`)
+- **`step_05b_build_metadata.py`** (NEW) — builds `site_registry.csv` from
+  parquet data + copies `parameter_reference.csv` from inventory artifact
+- **`step_07_load_postgres.py`** rewritten with COPY (10-100x faster than
+  `to_sql(method='multi')`; no more silent-failure pattern from v0.3.7)
+
+### Changed
+
+- **Canonical schema 15 → 14 cols.** `data_source` column dropped — all
+  data is TCEQ-sourced now.
+- **Site count: 47 → 42.** Dropped 4 TSP-only sites (480290623, 480290625,
+  480290626, 480291609) + Von Ormy (480291097, not in TCEQ pull) + 3 CPS
+  fence-line reference sites that had no data anyway. Williams Park 483551024
+  retained as `data_status='disabled'` for historical completeness.
+- **VOCs no longer in `pollutant_hourly`** — moved to dedicated tables.
+- **Site 480290060 (Palo Alto) no longer in `pollutant_hourly`** — PM10 24hr
+  readings routed to new `pollutant_daily_24hr` table.
+- **`aq.aq_weather_daily` DROPPED.** Pollutant + weather joins now handled
+  in user code against `aq.weather_hourly`. Saves 134 MB of derived storage.
+
+### Removed
+
+- `pipeline/step_05_merge_aq_weather.py` retired (no combined table).
+- `UNIT_CONVERSIONS` and `OUT_OF_SCOPE_FILTERS` removed from
+  `step_01_build_pollutant_store.py` — both handled upstream in 01b now.
+
+### Performance
+
+- **Full pipeline build:** ~9 minutes (vs 5+ hours in v0.3.7 with broken `to_sql`).
+- **Postgres load (step 07):** ~54 minutes for ~11.5M rows across 10 tables.
+- **Local ingest (step 01b):** ~4.7 min for 9.77M raw rows / 51 TXT files.
+
+### Verified
+
+- All 10 tables match local parquet/CSV artifacts exactly
+  ([cutover_verification.md](../!Archive_v0_3_7/db_metadata/cutover_verification.md))
+- 14 random rows spot-checked across 5 representative cases
+  (criteria, VOC, 24hr, A-split, B-split, ozone conversion) — all match
+- NAAQS top-3 ozone sites (Elm Creek, Heritage MS, Garden Ridge) exactly
+  match v0.3.7 archive values; other sites differ by ≤0.57 ppb due to
+  additional 2025 data in the TCEQ pull
+
+### Migration
+
+See [`pipeline/docs/v0_4_0_migration.md`](docs/v0_4_0_migration.md) for
+the full migration guide including example queries and rollback procedure.
+
+Git checkpoint: tag `v0.4.0-pipeline` at commit `79e6914` (pipeline code only);
+tag `v0.4.0` after Phase 6 + 7 completion.
+
+---
+
 ## [0.3.5] — 2026-04-22
 
 ### Added (database)
