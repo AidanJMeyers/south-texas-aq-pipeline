@@ -3,7 +3,7 @@
 **Released:** 2026-05-28
 **Previous version:** v0.3.7 (EPA + TCEQ hybrid)
 **Migration scope:** Full ingestion / storage / schema rewrite
-**Rollback procedure:** [`!Archive_v0_3_7/README.md`](../../!Archive_v0_3_7/README.md)
+**Rollback procedure:** see `!Archive_v0_3_7/README.md` in the project tree (not on the docs site — the archive is local-only because it's 1.1 GB)
 
 > v0.4.0 is the first version where **TCEQ is the sole source of truth** for
 > every site. The EPA AQS API integration path is retired. Historical v0.3.7
@@ -214,8 +214,7 @@ WHERE p.aqsid = '480290052' AND p.pollutant_group = 'Ozone'
 
 ### Row-count parity
 
-All 10 tables match local v0.4.0 parquet/CSV artifacts exactly. See
-[`!Archive_v0_3_7/db_metadata/cutover_verification.md`](../../!Archive_v0_3_7/db_metadata/cutover_verification.md).
+All 10 tables match local v0.4.0 parquet/CSV artifacts exactly. Full report at `!Archive_v0_3_7/db_metadata/cutover_verification.md` in the project tree (archive is local-only).
 
 ### Spot-check (raw TXT → Neon)
 
