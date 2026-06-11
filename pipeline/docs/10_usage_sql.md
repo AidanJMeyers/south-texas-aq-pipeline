@@ -41,15 +41,25 @@ Inside psql:
 Parse the URL into host / db / user / password fields and set **SSL mode =
 require**. Neon requires TLS.
 
-## Tables
+## Tables (v0.4.0)
 
 | Table | Rows | Primary indexes |
 |---|---:|---|
-| `aq.site_registry` | 47 | `aqsid` |
-| `aq.naaqs_design_values` | 764 | `aqsid`, `year`, `metric`, `pollutant_group` |
-| `aq.pollutant_daily` | 236,070 | `aqsid`, `date_local`, `pollutant_group` |
-| `aq.pollutant_monthly` | 6,070 | `aqsid`, `year_month`, `pollutant_group` |
-| `aq.aq_weather_daily` | 236,070 | `aqsid`, `date_local` |
+| `aq.site_registry` | 42 | `aqsid` |
+| `aq.parameter_reference` | 57 | `parameter_code`, `pollutant_group` |
+| `aq.naaqs_design_values` | 759 | `aqsid`, `year`, `metric`, `pollutant_group` |
+| `aq.pollutant_daily` | 201,290 | `aqsid`, `date_local`, `pollutant_group` |
+| `aq.pollutant_daily_24hr` | 636 | `aqsid`, `date_local`, `pollutant_group` |
+| `aq.pollutant_monthly` | 6,804 | `aqsid`, `year_month`, `pollutant_group` |
+| `aq.pollutant_hourly` | 4,710,663 | `aqsid`, `date_local`, `pollutant_group`, `year` |
+| `aq.vocs_1hr` | 4,964,065 | `aqsid`, `date_local`, `parameter_code` |
+| `aq.vocs_24hr` | 97,244 | `aqsid`, `date_local`, `parameter_code` |
+| `aq.weather_hourly` | 1,470,049 | `location`, `year`, `date_local` |
+
+> **v0.4.0 note:** `aq.aq_weather_daily` was dropped (decision #13). Examples
+> below that previously joined that combined table now join `pollutant_daily`
+> with `weather_hourly` directly. The v0.3.7 schema is still queryable at
+> `aq_v0_3_7_epa.*` if you need the old combined table for a one-off comparison.
 
 See [03_data_schemas.md](./03_data_schemas.md) for column-level documentation.
 
@@ -103,19 +113,34 @@ GROUP BY 1
 ORDER BY 1;
 ```
 
-### Q5 — Correlate daily ozone and temperature at a single site
+### Q5 — Correlate daily ozone and temperature at a single site (v0.4.0)
+
+`aq.aq_weather_daily` was dropped — join `pollutant_daily` with daily-
+aggregated `weather_hourly` directly. The nearest weather station for each
+AQS site is stored in `aq.site_registry` (look up by hand, or join on
+matching county for a quick approximation):
 
 ```sql
-SELECT date_local,
-       mean   AS ozone_ppm,
-       temp_c,
-       humidity,
-       wind_speed
-FROM aq.aq_weather_daily
-WHERE aqsid           = '480290052'
-  AND pollutant_group = 'Ozone'
-  AND valid_day
-ORDER BY date_local;
+WITH wx_daily AS (
+  SELECT date_local,
+         AVG(temp_c)     AS temp_c,
+         AVG(humidity)   AS humidity,
+         AVG(wind_speed) AS wind_speed
+  FROM aq.weather_hourly
+  WHERE county_name = 'Bexar'           -- Camp Bullis is in Bexar
+  GROUP BY date_local
+)
+SELECT p.date_local,
+       p.mean   AS ozone_ppm,
+       w.temp_c,
+       w.humidity,
+       w.wind_speed
+FROM   aq.pollutant_daily p
+JOIN   wx_daily w USING (date_local)
+WHERE  p.aqsid           = '480290052'
+  AND  p.pollutant_group = 'Ozone'
+  AND  p.valid_day
+ORDER BY p.date_local;
 ```
 
 ### Q6 — Summer vs winter PM₂.₅ across all counties
@@ -151,16 +176,33 @@ HAVING COUNT(*) FILTER (WHERE exceeds) > 0
 ORDER BY pollutant_group, metric, year;
 ```
 
-### Q8 — Weather pairing distances
+### Q8 — Sites that measure VOCs (NEW in v0.4.0)
 
 ```sql
-SELECT DISTINCT aqsid, site_name, county_name, weather_station, distance_km
-FROM aq.aq_weather_daily
-ORDER BY distance_km DESC;
+SELECT aqsid, site_name, county_name, voc_cadence,
+       pollutant_groups_hourly,
+       pollutant_groups_daily_24hr
+FROM   aq.site_registry
+WHERE  voc_cadence != ''
+ORDER  BY county_name, aqsid;
 ```
 
-Rows with large `distance_km` indicate pollutant sites whose nearest weather
-station is far away — worth flagging in analysis.
+`voc_cadence` is `'1hr'` (5 sites), `'24hr'` (8 sites), `'both'` (0 in v0.4.0),
+or empty for sites that measure only criteria pollutants.
+
+### Q8b — Benzene exposure at any VOC site (NEW in v0.4.0)
+
+```sql
+SELECT v.aqsid, v.site_name, v.date_local, v.time_local,
+       v.sample_measurement AS benzene_ppbC,
+       p.is_hap, p.naaqs_regulated
+FROM   aq.vocs_1hr v
+JOIN   aq.parameter_reference p USING (parameter_code)
+WHERE  v.parameter_code = 45201     -- Benzene
+  AND  v.sample_measurement > 5.0    -- ppbC threshold for screening
+ORDER  BY v.sample_measurement DESC
+LIMIT 20;
+```
 
 ### Q9 — Sites with 2024 PM₂.₅ annual above 10 µg/m³
 

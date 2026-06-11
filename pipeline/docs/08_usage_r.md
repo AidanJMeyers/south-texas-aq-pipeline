@@ -61,12 +61,17 @@ library(data.table)
 
 daily <- fread("data/csv/daily_pollutant_means.csv")
 naaqs <- fread("data/csv/naaqs_design_values.csv")
-combined <- fread("data/csv/combined_aq_weather_daily.csv")
 sites <- fread("data/csv/site_registry.csv")
+params <- fread("data/csv/parameter_reference.csv")  # NEW in v0.4.0
 ```
 
 `fread` is ~5× faster than base R `read.csv` and handles type inference
 correctly.
+
+> **v0.4.0 note:** The combined `combined_aq_weather_daily.csv` file no
+> longer exists (decision #13). Join `pollutant_daily` with a daily
+> roll-up of the weather parquet in your own code — see the
+> "Joining pollutant with weather" section below.
 
 ## RDS — optional R-native path
 
@@ -76,7 +81,6 @@ bundles exist:
 ```r
 master_pollutant <- readRDS("data/rds/master_pollutant.rds")
 master_weather   <- readRDS("data/rds/master_weather.rds")
-combined_daily   <- readRDS("data/rds/combined_daily.rds")
 ```
 
 These are identical to the parquet outputs but load slightly faster from
@@ -109,15 +113,27 @@ ggplot(o3, aes(x = year, y = value, color = county_name, shape = status)) +
 ggsave("ozone_design_values.png", width = 10, height = 6, dpi = 150)
 ```
 
-## Joining pollutant with weather
+## Joining pollutant with weather (v0.4.0 — join in user code)
 
 ```r
 library(data.table)
+library(arrow)
 
-combined <- fread("data/csv/combined_aq_weather_daily.csv")
+poll <- as.data.table(open_dataset("data/parquet/daily/pollutant_daily.parquet") %>% collect())
+wx   <- as.data.table(open_dataset("data/parquet/weather/")  %>%
+                       filter(year >= 2015)                  %>%
+                       select(county_name, date_local, temp_c, humidity, wind_speed) %>%
+                       collect())
+
+# Aggregate weather to daily means per county
+wx_daily <- wx[, .(temp_c = mean(temp_c, na.rm = TRUE),
+                   humidity = mean(humidity, na.rm = TRUE),
+                   wind_speed = mean(wind_speed, na.rm = TRUE)),
+               by = .(county_name, date_local)]
 
 # Monthly means of ozone vs temperature at a single site
-site <- combined[aqsid == "480290052" & pollutant_group == "Ozone"]
+site <- poll[aqsid == "480290052" & pollutant_group == "Ozone"]
+site <- merge(site, wx_daily, by = c("county_name", "date_local"))
 site[, ym := substr(date_local, 1, 7)]
 
 monthly <- site[, .(

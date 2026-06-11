@@ -103,18 +103,29 @@ exceedances_2023 = dv.query(
 print(exceedances_2023[["county_name", "site_name", "value", "naaqs_level"]])
 ```
 
-## Combined AQ + weather
+## AQ + weather correlation (v0.4.0 — join in user code)
+
+`aq.aq_weather_daily` was dropped in v0.4.0 (decision #13). Join the daily
+pollutant aggregates with the weather hourly store directly:
 
 ```python
-combined = pd.read_parquet("data/parquet/combined/aq_weather_daily.parquet")
+poll = pd.read_parquet("data/parquet/daily/pollutant_daily.parquet")
+wx   = pd.read_parquet("data/parquet/weather/", filters=[("year", "=", 2024)])
+
+# Aggregate weather to daily, then join on (county_name, date_local)
+wx_daily = (
+    wx.groupby(["county_name", "date_local"])[["temp_c", "humidity", "wind_speed"]]
+      .mean()
+      .reset_index()
+)
 
 # Correlation between daily temp_c and daily ozone mean at a single site
-one_site = combined.query("aqsid == '480290052' and pollutant_group == 'Ozone'")
-corr = one_site[["mean", "temp_c", "wind_speed", "humidity"]].corr()
-print(corr)
+site = poll.query("aqsid == '480290052' and pollutant_group == 'Ozone'")
+joined = site.merge(wx_daily, on=["county_name", "date_local"])
+print(joined[["mean", "temp_c", "wind_speed", "humidity"]].corr())
 ```
 
-## Site registry
+## Site registry (v0.4.0 — new columns)
 
 ```python
 sites = pd.read_csv("data/csv/site_registry.csv")
@@ -122,8 +133,32 @@ sites = pd.read_csv("data/csv/site_registry.csv")
 # Only active sites
 active = sites.query("data_status == 'active'")
 
-# Count by county and network
-print(active.groupby(["county_name", "network"]).size().unstack(fill_value=0))
+# Which sites measure VOCs (new in v0.4.0)
+voc_sites = active[active["voc_cadence"] != ""]
+print(voc_sites[["aqsid", "site_name", "county_name", "voc_cadence"]])
+
+# Count by county (the v0.3.7 'network' column is gone — all TCEQ now)
+print(active.groupby("county_name").size())
+```
+
+## VOC profile at a single site (NEW in v0.4.0)
+
+```python
+voc = pd.read_parquet("data/parquet/vocs_1hr/",
+                       filters=[("year", "=", 2024)])
+# Camp Bullis Benzene daily mean
+camp = voc.query("aqsid == '480290052' and pollutant_name == 'Benzene'")
+daily = camp.groupby("date_local")["sample_measurement"].mean()
+print(daily.describe())
+```
+
+## Site 0060 PM10 24hr-only readings (NEW table in v0.4.0)
+
+```python
+daily24 = pd.read_parquet("data/parquet/pollutant_daily_24hr/")
+print(daily24[["date_local", "aqsid", "sample_measurement"]].head())
+# All rows: 1 site (480290060 San Antonio Palo Alto), PM10 only,
+# 24hr filter samples on a 1-in-6 day EPA schedule (~58/year).
 ```
 
 ## Full worked example: Bexar County ozone NAAQS trend

@@ -157,31 +157,114 @@ EPA AQS Data Mart.
 
 ## 3. OpenWeather + Solcast historical hourly observations
 
-**Source:** OpenWeather One Call API (historical endpoint) + Solcast
-irradiance.
-**Coverage:** 15 stations across the 13-county footprint, 2015-01-01 → 2025-12.
-**Retrieval:** Project bulk-download script with per-station coordinate list
-in `01_Data/Reference/weather_bulk_*_sites.csv`.
-**License:** OpenWeather commercial data license (project has active
-subscription); Solcast academic license.
-**Landing location:**
+Hourly meteorological + solar irradiance covariates for every active
+weather station. Used downstream for diurnal regressions, weather-pollutant
+correlations, kriging with `distance_km` weighting, and PCA dimensionality
+reduction.
+
+**Coverage:** **15 stations** across the 13-county footprint, **2014-12-31 → 2025-12-31**.
+
+| County | Stations | Notes |
+|---|---:|---|
+| Bexar | 5 | Multi-station coverage for the San Antonio MSA dense site cluster |
+| Nueces | 3 | Corpus Christi metro + nearby airports |
+| Cameron, Comal, Guadalupe, Hidalgo, Kleberg, Victoria, Webb | 1 each | One representative station per county |
+| Atascosa, Karnes, Maverick, Wilson | (paired) | Use nearest-neighbor pairing from a neighboring-county station |
+
+### 3.1 Sources and licensing
+
+| Sub-source | Provider | Variables | License |
+|---|---|---|---|
+| Historical hourly observations | **OpenWeather One Call API** (historical endpoint) | Temperature, humidity, pressure, wind, clouds, visibility, precipitation, weather codes | Active project subscription (commercial data license) |
+| Solar irradiance | **Solcast** | GHI / DNI / DHI (clear-sky + cloudy-sky) at hourly resolution | Academic license |
+
+Both sources are pulled at the same 15 station coordinates so they merge
+cleanly on `(location, datetime)`.
+
+### 3.2 Retrieval
+
+Bulk download is handled by project scripts under `02_Scripts/Python/`:
+
+- `weather_bulk_download.py` — issues OpenWeather One Call requests for
+  each station × year combination, paginates through hourly granularity
+  with rate-limit backoff, writes one CSV per station per year.
+- `solcast_bulk_download.py` — same pattern for Solcast irradiance.
+
+Both scripts read their target coordinate lists from
+`01_Data/Reference/weather_bulk_*_sites.csv`. API keys live in environment
+variables (`OPENWEATHER_API_KEY`, `SOLCAST_API_KEY`) — never committed.
+
+These are **one-shot scripts run at end-of-year** when each provider's
+historical archive stabilizes for the prior calendar year. They sit
+outside the main `pipeline/run_pipeline.py` chain.
+
+### 3.3 Landing location (raw)
 
 ```
 01_Data/OpenwWeatherData/
-├── Historical Weather Data/    (15 station CSVs, hourly)
-└── Irradiance Data/            (13 station CSVs, hourly)
+├── Historical Weather Data/         (15 station CSVs, hourly)
+│   ├── owm_san_antonio.csv          ~250 MB
+│   ├── owm_corpus_christi.csv        …
+│   └── … 13 more stations
+└── Irradiance Data/                 (13 station CSVs, hourly)
+    ├── solcast_san_antonio.csv      ~50 MB
+    └── … 12 more stations
 ```
 
-### Pre-processed master
+Note: 2 of the 15 OpenWeather stations have no Solcast pairing because
+Solcast's historical archive does not cover those exact coordinates; they
+fall back to the nearest neighbor's irradiance.
 
-The raw station files are merged into
-`01_Data/Processed/Meteorological/Weather_Irradiance_Master_2015_2025.csv`
-(440 MB, 1.47M rows, 45 columns). Step 02 of the pipeline reads this
-directly and writes partitioned parquet to `data/parquet/weather/`, which
-is then loaded into `aq.weather_hourly` by step 07.
+### 3.4 Pre-processed master
 
-**Weather data is UNCHANGED in v0.4.0** — the EPA→TCEQ migration only
-touched the pollutant side of the pipeline.
+The raw station files are merged into a single denormalized master:
+
+**File:** `01_Data/Processed/Meteorological/Weather_Irradiance_Master_2015_2025.csv`
+**Size:** 440 MB
+**Rows:** 1,470,049 (15 stations × ~98,000 hours each, 2014-12-31 → 2025-12-31)
+**Columns:** 45 (full schema in [03_data_schemas.md §weather](./03_data_schemas.md#datasparquetweather--weather-hourly-unchanged-in-v040))
+
+The master is built by a separate one-shot script
+(`02_Scripts/Python/build_weather_master.py`) that:
+
+1. Concatenates the per-station OpenWeather CSVs.
+2. Adds Solcast columns (`ghi_*`, `dni_*`, `dhi_*`) on
+   `(location, datetime_local)`.
+3. Computes derived columns:
+   - `temp_f` (Fahrenheit alias for `temp` — which is stored in °C)
+   - `wind_u`, `wind_v` (meteorological convention components for kriging)
+   - `heat_index_c` (Rothfusz formula, null when T<26 °C or RH<40 %)
+   - `td_spread` (dew-point spread = `temp - dew_point`)
+   - `is_raining` (boolean from `rain_1h > 0`)
+   - `season` (DJF / MAM / JJA / SON)
+
+Pipeline step 02 reads this master directly, renames `site_name` → `location`,
+ensures the `temp_c` alias is present, and writes partitioned parquet to
+`data/parquet/weather/` (partitioned by `location`, `year`). Step 07
+COPYs that into `aq.weather_hourly` on Neon (45 cols, 1.47M rows, 630 MB).
+
+### 3.5 Status in v0.4.0
+
+**Weather data is UNCHANGED in v0.4.0.** The EPA → TCEQ migration only
+touched the pollutant side of the pipeline. `aq.weather_hourly` has the
+same 1,470,049 rows in both `aq_v0_3_7_epa.*` and the new `aq.*` schema,
+byte-identical.
+
+### 3.6 Future refresh
+
+The 15-station network is stable. Annual refresh (typically January) is:
+
+```powershell
+# 1. Pull the new calendar year from each provider
+python 02_Scripts/Python/weather_bulk_download.py --year 2026
+python 02_Scripts/Python/solcast_bulk_download.py --year 2026
+
+# 2. Rebuild the merged master
+python 02_Scripts/Python/build_weather_master.py
+
+# 3. Re-run pipeline steps 02 + 07 to write parquet and reload Neon
+python pipeline/run_pipeline.py --only 02,07
+```
 
 ---
 

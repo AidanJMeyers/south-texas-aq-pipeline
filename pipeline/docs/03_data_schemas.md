@@ -1,60 +1,97 @@
 # 03 — Data Schemas
 
+> **v0.4.0 (2026-05-28):** Schemas updated for the TCEQ-only architecture.
+> Canonical 14-column schema (was 15 — `data_source` dropped). Three new
+> tables (`vocs_1hr`, `vocs_24hr`, `pollutant_daily_24hr`) and one new
+> reference table (`parameter_reference`). See the
+> [v0.4.0 migration guide](./v0_4_0_migration.md) for query rewrites.
+
 Complete schemas for every output the pipeline produces. This is the
 authoritative reference — if a column name or unit differs from what you
 see here, the pipeline has drifted and this doc is wrong.
 
-## Parquet Store
+---
 
-### `data/parquet/pollutants/` — Hive partitioned
+## Canonical 14-column schema
 
-**Partition keys:** `pollutant_group=…/year=…/*.parquet`
-**Rows:** ~4,870,334 after deduplication (from 5,843,628 raw)
-**Produced by:** `step_01_build_pollutant_store.py`
+The same 14-column schema is used for `aq.pollutant_hourly`,
+`aq.pollutant_daily_24hr`, `aq.vocs_1hr`, and `aq.vocs_24hr` at ingest.
+The hourly stores add 5 derived columns (`datetime`, `year`, `month`,
+`hour`, `season`) when written to parquet by step 01 / 01c.
 
 | Column | Type | Unit | Description |
 |---|---|---|---|
 | `state_code` | int32 | — | FIPS state code (always 48 = Texas) |
 | `county_code` | int32 | — | FIPS county code (3-digit) |
 | `site_number` | int32 | — | AQS site number |
-| `parameter_code` | int32 | — | AQS parameter code (e.g. 44201 = O₃) |
+| `parameter_code` | int32 | — | AQS parameter code (see `aq.parameter_reference`) |
 | `poc` | int32 | — | Parameter Occurrence Code (sub-instrument identifier) |
 | `date_local` | string | — | ISO date `YYYY-MM-DD` (local time) |
-| `time_local` | string | — | `HH:MM` (local time) |
+| `time_local` | string | — | `HH:MM` (local time; `00:00` for daily readings) |
 | `sample_measurement` | float64 | varies | **Normalized to EPA units** (see §Unit conventions) |
-| `method_code` | int32 | — | Measurement method code |
-| `county_name` | string | — | Title case (normalized from ALL-CAPS) |
-| `pollutant_name` | string | — | Specific pollutant name |
-| `aqsid` | string | — | 9-digit AQS site identifier (`state+county+site`) |
-| `data_source` | string | — | `"EPA"` or `"TCEQ"` |
+| `method_code` | int32 | — | AQS measurement method code |
+| `county_name` | string | — | Title case (e.g. "Bexar", "Nueces") |
+| `pollutant_name` | string | — | Specific pollutant name (e.g. "Ozone", "Benzene") |
+| `aqsid` | string | — | 9-digit AQS site identifier (`state+county+site`, zero-padded) |
 | `pollutant_group` | string | — | **Partition key.** One of: `Ozone`, `NOx_Family`, `CO`, `SO2`, `PM2.5`, `PM10`, `VOCs` |
-| `site_name` | string | — | `Human Name_XXXX` |
-| `datetime` | timestamp[ns] | — | Derived from `date_local + time_local` |
-| `year` | int16 | — | **Partition key** |
-| `month` | int8 | — | 1–12 |
-| `hour` | int8 | — | 0–23 |
-| `season` | string | — | `DJF` / `MAM` / `JJA` / `SON` |
+| `site_name` | string | — | Canonical name with trailing AQSID suffix, e.g. `Camp Bullis_0052` |
 
-#### Unit conventions (pollutant parquet)
+> **v0.4.0 change:** The `data_source` column was dropped (15 → 14 cols)
+> because every row is TCEQ-sourced now. If you have v0.3.7 code that
+> selects `data_source`, remove it; if you filter `WHERE data_source='TCEQ'`,
+> the predicate is now unconditional.
 
-| Pollutant group | Parameter codes | Unit | Note |
-|---|---|---|---|
-| Ozone | 44201 | **ppm** | TCEQ rows converted from ppb (×0.001) in step 01 |
-| NOx_Family | 42601, 42602, 42603 | ppb | EPA and TCEQ both native ppb |
-| CO | 42101 | ppm | EPA-only, native ppm |
-| SO2 | 42401 | ppb | EPA and TCEQ both native ppb |
-| PM2.5 | 88101, 88500, 88502 | µg/m³ | Local conditions |
-| PM10 | 81102, 85101 | µg/m³ | Local conditions |
-| VOCs | 43xxx, 45xxx | ppbC | Carbon-normalized |
+---
 
-### `data/parquet/weather/` — Hive partitioned
+## Parquet Stores (local layer)
+
+### `data/parquet/pollutants/` — Criteria hourly
+
+**Partition keys:** `pollutant_group=…/year=…/*.parquet`
+**Rows:** 4,710,663 (v0.4.0)
+**Produced by:** `step_01_build_pollutant_store.py`
+**Schema:** 14 canonical cols + 5 derived (`datetime`, `year`, `month`, `hour`, `season`)
+
+VOCs are **not** in this store anymore — they live under `vocs_1hr` / `vocs_24hr`
+(decision #10). Site 480290060 PM10 is **not** here either — it routes to
+`pollutant_daily_24hr` (decision #5/#6).
+
+### `data/parquet/vocs_1hr/` and `data/parquet/vocs_24hr/` — VOC AutoGC (NEW)
+
+**Partition keys:** `pollutant_name=…/year=…/*.parquet`
+**Rows:**
+- `vocs_1hr`: 4,964,065 (5 sites × 46 chemicals)
+- `vocs_24hr`: 97,244 (8 sites × 48 chemicals)
+
+**Produced by:** `step_01c_build_aux_stores.py`
+**Schema:** Same 14-col canonical (all rows have `pollutant_group="VOCs"`) + 5 derived
+
+We partition by `pollutant_name` (chemical species) rather than
+`pollutant_group` because every VOC row has the same group value —
+partitioning by group would mean one giant partition. Splitting by chemical
+keeps partitions small and lets downstream queries push down
+`pollutant_name="Benzene"` filters cheaply.
+
+### `data/parquet/pollutant_daily_24hr/` — 24hr-only criteria (NEW)
+
+**Partition keys:** `pollutant_group=…/year=…/*.parquet`
+**Rows:** 636 (v0.4.0 — Site 480290060 PM10 only, will grow as new
+24hr-only feeds are added)
+**Produced by:** `step_01c_build_aux_stores.py`
+**Schema:** Same 14-col canonical + 5 derived. `time_local` is `00:00`
+for daily readings.
+
+Routing rule: any row whose AQS RD `Dur Cd` field is `7` (24hr block) or
+`X` (24hr average from midnight) lands here, not in `pollutant_hourly`.
+
+### `data/parquet/weather/` — Weather hourly (UNCHANGED in v0.4.0)
 
 **Partition keys:** `location=…/year=…/*.parquet`
 **Rows:** 1,470,049
 **Produced by:** `step_02_build_weather_store.py`
 
-Inherits all 45 columns from `Weather_Irradiance_Master_2015_2025.csv`. The
-most-used subset:
+Inherits all 45 columns from `Weather_Irradiance_Master_2015_2025.csv`.
+Most-used subset:
 
 | Column | Type | Unit | Description |
 |---|---|---|---|
@@ -63,10 +100,10 @@ most-used subset:
 | `datetime_utc` | string | — | UTC datetime |
 | `year`, `month`, `hour` | int16/8/8 | — | Derived from `datetime_local` |
 | `date_local` | string | — | Local date `YYYY-MM-DD` |
-| `location` | string | — | **Partition key.** Weather station name (renamed from `site_name`) |
+| `location` | string | — | **Partition key.** Weather station name |
 | `county_name` | string | — | County the station is in |
 | `lat`, `lon` | float64 | degrees | Station coordinates |
-| `temp` | float64 | **°C** | Air temperature (already Celsius in master) |
+| `temp` | float64 | **°C** | Air temperature (Celsius in master) |
 | `temp_c` | float64 | °C | Stable alias (identical to `temp`) |
 | `temp_f` | float64 | °F | Pre-computed Fahrenheit |
 | `feels_like` | float64 | °C | Apparent temperature |
@@ -83,8 +120,7 @@ most-used subset:
 | `clouds_all` | float64 | % | Cloud cover fraction |
 | `cloud_fraction` | float64 | 0–1 | Decimal cloud cover |
 | `visibility` | float64 | m | Horizontal visibility |
-| `rain_1h` | float64 | mm | Rainfall last hour |
-| `rain_3h` | float64 | mm | Rainfall last 3 hours |
+| `rain_1h`, `rain_3h` | float64 | mm | Rainfall last 1/3 hours |
 | `snow_1h` | float64 | mm | Snowfall last hour |
 | `is_raining` | bool | — | Flag |
 | `weather_id`, `weather_main`, `weather_description` | — | — | OpenWeather condition |
@@ -95,7 +131,7 @@ most-used subset:
 
 ### `data/parquet/naaqs/design_values.parquet`
 
-**Rows:** 764
+**Rows:** 759 (v0.4.0)
 **Produced by:** `step_03_compute_naaqs.py`
 
 | Column | Type | Description |
@@ -115,134 +151,114 @@ most-used subset:
 | `metric` | Pollutant | Formula | NAAQS level | Applies when |
 |---|---|---|---|---|
 | `ozone_8hr_4th_max` | O₃ | 4th-highest daily max 8-hr rolling avg per year | 0.070 ppm | All sites with O₃ data |
-| `pm25_annual_mean` | PM₂.₅ | Annual mean of daily means (≥18 hrs) | 9.0 µg/m³ | PM₂.₅ sites |
+| `pm25_annual_mean` | PM₂.₅ | Annual mean of daily means (≥18 hrs) | **9.0 µg/m³** (Feb 2024 standard) | PM₂.₅ sites |
 | `pm25_24hr_p98` | PM₂.₅ | 98th percentile of daily means per year | 35 µg/m³ | PM₂.₅ sites |
-| `pm10_24hr_exceedances` | PM₁₀ | Count of daily means > 150 µg/m³ per year | — | PM₁₀ sites |
-| `co_8hr_max` | CO | Annual max of 8-hr rolling means | 9 ppm | CO sites |
-| `co_1hr_max` | CO | Annual max hourly | 35 ppm | CO sites |
-| `so2_1hr_p99` | SO₂ | 99th percentile of daily max 1-hr per year | 75 ppb | SO₂ sites |
-| `no2_1hr_p98` | NO₂ | 98th percentile of daily max 1-hr per year | 100 ppb | NO₂ only (param 42602) |
-| `no2_annual_mean` | NO₂ | Annual mean | 53 ppb | NO₂ only (param 42602) |
+| `pm10_24hr_exceedances` | PM₁₀ | Count of daily means > 150 µg/m³ per year | — | PM₁₀ sites incl. site 0060 24hr |
+| `co_1hr_max` | CO | Daily max 1-hr | 35 ppm | CO sites |
+| `co_8hr_max` | CO | Daily max 8-hr rolling avg | 9 ppm | CO sites |
+| `so2_1hr_99p_3yr` | SO₂ | 99th percentile of daily max 1-hr, 3-yr avg | 75 ppb | SO₂ sites |
+| `no2_1hr_98p_3yr` | NO₂ | 98th percentile of daily max 1-hr, 3-yr avg | 100 ppb | NOx_Family sites (parameter_code = 42602) |
+| `no2_annual_mean` | NO₂ | Annual mean of hourly | 53 ppb | NOx_Family sites (parameter_code = 42602) |
 
-Completeness rules are documented in [05_methodology.md](./05_methodology.md#completeness-rules).
+### `data/parquet/daily/`
 
-### `data/parquet/daily/pollutant_daily.parquet`
-
-**Rows:** 236,070
+**Files:** `pollutant_daily.parquet` (201,290 rows) +
+`pollutant_monthly.parquet` (6,804 rows)
 **Produced by:** `step_04_compute_daily_aggregates.py`
 
-One row per `(aqsid, date_local, parameter_code)`.
+Daily schema: `aqsid, date_local, parameter_code, pollutant_name,
+pollutant_group, county_name, site_name, mean, min, max, std, n_hours,
+completeness_pct, valid_day` (14 cols).
+
+Monthly schema: `aqsid, year_month, parameter_code, pollutant_name,
+pollutant_group, county_name, site_name, monthly_mean, monthly_min,
+monthly_max, monthly_std, n_valid_days` (12 cols).
+
+---
+
+## Reference / metadata CSVs
+
+### `data/csv/site_registry.csv` — Site inventory (v0.4.0 schema)
+
+**Rows:** 42 (41 active + 1 disabled)
+**Produced by:** `step_05b_build_metadata.py`
 
 | Column | Type | Description |
 |---|---|---|
-| `aqsid`, `date_local`, `parameter_code`, `pollutant_name`, `pollutant_group` | — | Identifiers |
-| `county_name`, `site_name` | string | Metadata |
-| `mean` | float64 | Daily mean of `sample_measurement` |
-| `min` | float64 | Daily min |
-| `max` | float64 | Daily max |
-| `std` | float64 | Daily std dev (ddof=1) |
-| `n_hours` | int64 | Hours reported that day |
-| `completeness_pct` | float64 | `n_hours / 24` |
-| `valid_day` | bool | `completeness_pct >= 0.75` |
+| `aqsid` | string | 9-digit AQS site ID (primary key) |
+| `state_code`, `county_code`, `site_number` | int | FIPS components |
+| `site_name`, `county_name` | string | Canonical names |
+| `pollutant_groups_hourly` | string | Semicolon-joined list, e.g. `Ozone;NOx_Family;PM2.5` — what's in `pollutant_hourly` |
+| `pollutant_groups_daily_24hr` | string | Semicolon-joined list — what's in `pollutant_daily_24hr` |
+| `voc_cadence` | string | `'1hr'`, `'24hr'`, `'both'`, or empty string |
+| `n_pollutant_groups` | int | Total distinct pollutant groups measured |
+| `first_date`, `last_date` | string | Date range of data |
+| `n_records` | int | Total rows across all pollutant stores |
+| `data_status` | string | `'active'` or `'disabled'` |
+| `notes` | string | Free text |
+| `lat`, `lon` | float | Coordinates (from `enhanced_monitoring_sites.csv` + `Extra TCEQ Sites.xlsx`) |
 
-### `data/parquet/daily/pollutant_monthly.parquet`
+> **v0.4.0 change:** The v0.3.7 `data_source` / `pollutants` / `n_pollutants` /
+> `co_located_with` / `network` columns are gone. The new
+> `pollutant_groups_hourly` / `pollutant_groups_daily_24hr` / `voc_cadence`
+> trio captures everything you need to route queries to the right table.
 
-**Rows:** 6,070
-**Produced by:** `step_04_compute_daily_aggregates.py`
+### `data/csv/parameter_reference.csv` — AQS code → name + HAP (NEW in v0.4.0)
 
-One row per `(aqsid, year_month, parameter_code)`. Uses only valid days.
-
-| Column | Type | Description |
-|---|---|---|
-| `aqsid`, `year_month`, `parameter_code`, `pollutant_name`, `pollutant_group` | — | Identifiers |
-| `county_name`, `site_name` | string | |
-| `monthly_mean` | float64 | Mean of daily means |
-| `monthly_min`, `monthly_max`, `monthly_std` | float64 | |
-| `n_valid_days` | int64 | Number of days meeting 75% threshold |
-
-### `data/parquet/combined/aq_weather_daily.parquet`
-
-**Rows:** 236,070
-**Produced by:** `step_05_merge_aq_weather.py`
-
-Daily pollutant joined with daily-aggregated weather at the **nearest** weather
-station. Each row carries all of `pollutant_daily`'s columns PLUS:
+**Rows:** 57 (9 criteria + 47 VOCs + 1 sparse PM10 variant)
+**Source:** [EPA AQS code tables](https://aqs.epa.gov/aqsweb/documents/codetables/parameters.html)
+**Produced by:** `step_05b_build_metadata.py` (copies from
+`!Archive_v0_3_7/inventory/parameter_reference.csv`)
 
 | Column | Type | Description |
 |---|---|---|
-| `weather_station` | string | Paired station (same-county Haversine nearest) |
-| `distance_km` | float64 | Great-circle distance from pollutant site to weather station |
-| `temp_c`, `temp_c_min`, `temp_c_max` | float64 | Daily temperature stats (°C) |
-| `feels_like_c`, `dew_point_c` | float64 | |
-| `humidity`, `humidity_min`, `humidity_max` | float64 | % |
-| `pressure` | float64 | hPa |
-| `wind_speed`, `wind_speed_max` | float64 | m/s |
-| `wind_u`, `wind_v` | float64 | m/s (for kriging) |
-| `wind_gust_max` | float64 | m/s |
-| `clouds_all` | float64 | % |
-| `visibility` | float64 | m |
-| `rain_1h_sum` | float64 | Daily precipitation |
-| `ghi_cloudy_sky_sum`, `ghi_clear_sky_sum` | float64 | Daily integrated GHI |
-| `heat_index_c_max` | float64 | Daily peak heat index |
+| `parameter_code` | int | AQS parameter code (primary key) |
+| `parameter_name` | string | Human-readable name |
+| `chemical_family` | string | `Criteria` / `VOC-Paraffin` / `VOC-Cycloalkane` / `VOC-Olefin` / `VOC-Aromatic` |
+| `pollutant_group` | string | Pipeline routing group |
+| `default_units` | string | Canonical units (ppm / ppb / ppbC / µg/m³ LC) |
+| `naaqs_regulated` | bool | Is there a current EPA NAAQS for this parameter |
+| `is_hap` | bool | Listed in Clean Air Act §112(b) as a Hazardous Air Pollutant |
+| `notes` | string | Unit-conversion or sparseness notes |
 
-## Flat CSV exports (`data/csv/`)
+---
 
-One-to-one dumps of the parquet tables above. Same schemas. Regenerated on
-every pipeline run.
+## Postgres tables (`aq.*` schema on Neon)
 
-| File | Source | Rows (approx) |
-|---|---|---:|
-| `daily_pollutant_means.csv` | `pollutant_daily.parquet` | 236k |
-| `naaqs_design_values.csv` | `design_values.parquet` | 764 |
-| `combined_aq_weather_daily.csv` | `aq_weather_daily.parquet` | 236k |
-| `site_registry.csv` | Built in step 05 from 4 sources | 47 |
+After step 07 runs, the `aq` schema contains 10 tables. Schemas mirror the
+parquet/CSV sources above:
 
-### `site_registry.csv` (47 rows — full inventory)
+| Table | Source | Rows | Size |
+|---|---|---:|---:|
+| `aq.site_registry` | csv | 42 | 32 kB |
+| `aq.parameter_reference` | csv (NEW) | 57 | 48 kB |
+| `aq.naaqs_design_values` | parquet | 759 | 288 kB |
+| `aq.pollutant_daily` | parquet | 201,290 | 35 MB |
+| `aq.pollutant_daily_24hr` | parquet_dir (NEW) | 636 | 264 kB |
+| `aq.pollutant_monthly` | parquet | 6,804 | 1.2 MB |
+| `aq.pollutant_hourly` | parquet_dir | 4,710,663 | 841 MB |
+| `aq.vocs_1hr` | parquet_dir (NEW) | 4,964,065 | 877 MB |
+| `aq.vocs_24hr` | parquet_dir (NEW) | 97,244 | 17 MB |
+| `aq.weather_hourly` | parquet_dir | 1,470,049 | 630 MB |
 
-| Column | Description |
-|---|---|
-| `aqsid` | 9-digit AQS site identifier |
-| `state_code`, `county_code`, `site_number` | FIPS + site |
-| `site_name` | Human-readable name |
-| `county_name` | Title case |
-| `network` | `EPA`, `TCEQ`, `BOTH`, or empty (reference/alias rows) |
-| `pollutants` | `;`-separated list of pollutant groups measured |
-| `n_pollutants` | Count of pollutant groups |
-| `first_date`, `last_date` | Data coverage period (null for non-active rows) |
-| `n_records` | Total raw observations across all pollutants |
-| `data_status` | See breakdown below |
-| `co_located_with` | Cross-reference AQSID for aliases (empty for most rows) |
-| `notes` | Free-text explanation of the row's status |
-| `lat`, `lon` | Decimal degrees (WGS84) |
+The legacy v0.3.7 EPA-blended schema is preserved at `aq_v0_3_7_epa.*`
+(7 tables, ~2.2 GB) — same column names as the old `aq.*` schema.
 
-**Status breakdown (47 total, as of v0.3.3):**
+---
 
-| Count | Status | Meaning |
-|---:|---|---|
-| **42** | `active` | Has measurement data in the pipeline |
-| **3** | `reference` | CPS Energy fence-line monitors (Gardner Rd, Gate 9A, Gate 58) |
-| **1** | `excluded` | Calaveras Lake Park (480291609) — TCEQ monitor, **officially retired from analysis**: measures only Total Suspended Particulate (TSP), which is outside the project's pollutant scope |
-| **1** | `disabled` | Williams Park (483551024) — confirmed disabled in inventory |
+## Unit conventions (post-ingest)
 
-**Note on Calaveras:** `480290059` (Calaveras Lake, EPA-operated, active)
-and `480291609` (Calaveras Lake Park, TCEQ-operated, excluded) are
-**separate physical monitoring stations**. Calaveras Lake Park measures
-only Total Suspended Particulate (TSP), which is outside the project's
-scope (PM₂.₅, PM₁₀, O₃, CO, NOx, SO₂, VOCs). Do not deduplicate.
+| Pollutant group | Parameter codes | Stored unit | Note |
+|---|---|---|---|
+| Ozone | 44201 | **ppm** | TCEQ ppb → ppm × 0.001 applied at step 01b |
+| NOx_Family | 42601, 42602, 42603 | ppb | Native ppb |
+| CO | 42101 | ppm | Native ppm |
+| SO2 | 42401 | ppb | Native ppb |
+| PM2.5 | 88101, 88502 | µg/m³ | Local conditions |
+| PM10 | 81102 | µg/m³ | Local conditions |
+| VOCs (paraffins / cycloalkanes / olefins) | 43xxx | ppbC | Carbon-normalized |
+| VOCs (aromatics) | 45xxx | ppbC | Carbon-normalized |
 
-**Important:** Always filter to `data_status == 'active'` for analytical
-queries. The other four statuses describe registry entries that do **not**
-have associated measurement rows.
-
-## Postgres tables (`aq` schema)
-
-Analysis-ready tables mirror the parquet/CSV schemas exactly. See
-[10_usage_sql.md](./10_usage_sql.md) for connection and query details.
-
-| Table | Row count | Index |
-|---|---:|---|
-| `aq.site_registry` | 47 | `aqsid` |
-| `aq.naaqs_design_values` | 764 | `aqsid`, `year`, `metric`, `pollutant_group` |
-| `aq.pollutant_daily` | 236,070 | `aqsid`, `date_local`, `pollutant_group` |
-| `aq.pollutant_monthly` | 6,070 | `aqsid`, `year_month`, `pollutant_group` |
-| `aq.aq_weather_daily` | 236,070 | `aqsid`, `date_local` |
+The ozone conversion is the **only** unit transformation in the v0.4.0
+pipeline. Other parameters are TCEQ-native, which equals the EPA canonical
+convention. See [methodology §1](./05_methodology.md#1-unit-normalization).

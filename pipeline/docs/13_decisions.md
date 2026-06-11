@@ -5,6 +5,105 @@ what alternatives were considered. Format: Architecture Decision Records
 (ADR). Each decision is one subsection; once accepted, decisions are not
 edited in place — a new ADR supersedes.
 
+> **v0.4.0 (2026-05-28):** ADR-019 below records the most significant
+> architectural shift in the project's history — retiring the EPA AQS API
+> path and switching to TCEQ as the sole data source. The 19 sub-decisions
+> that flowed from this are documented in the
+> [v0.4.0 migration guide](./v0_4_0_migration.md). This ADR record now
+> uses ADR-019 as the umbrella; older ADRs remain valid where they don't
+> conflict.
+
+---
+
+## ADR-019: TCEQ as sole data source; retire EPA AQS API path
+
+**Status:** Accepted (v0.4.0, 2026-05-28)
+
+### Context
+
+Through v0.3.7 the pipeline blended **two upstream sources**:
+- EPA AQS Data Mart API (29 sites) — pre-aggregated NAAQS-formatted output,
+  mixed cadence (some sites 24hr-only), unit conventions varied per parameter
+- TCEQ TAMIS (14 sites) — raw hourly observations from monitors that also
+  feed EPA
+
+Every site that reported to EPA was reporting **the same underlying data**
+to TCEQ without the middleware. The v0.3.6 split-name bug (24 sites with
+duplicate `site_name` strings because EPA and TCEQ wrote them differently;
+see [data quality issue #9](./06_data_quality.md)) was a symptom of this
+dual-source fragility.
+
+### Options considered
+
+1. **Continue the EPA + TCEQ blend** — known fragile; harmonization bugs
+   recur with every new data refresh.
+2. **EPA-only** — would lose VOC sites (TCEQ-exclusive); some sites only
+   appear in EPA at 24hr cadence; opaque EPA-side QA.
+3. **TCEQ-only** ← *chosen.* TCEQ is the upstream source EPA itself
+   receives data from for these monitors. Uniform hourly cadence and unit
+   conventions across every site.
+
+### Decision
+
+**TCEQ as the sole pollutant data source for v0.4.0 and beyond.** EPA AQS
+API integration retired; `notebooks/EPA_Refresh_2025_AM.py` archived. The
+existing v0.3.7 schema preserved indefinitely as `aq_v0_3_7_epa.*` for
+rollback and historical comparison.
+
+### Consequences
+
+- **Pipeline becomes simpler** — no per-(parameter, source) unit dispatch;
+  no source-aware site_name normalization; no out-of-scope cross-source
+  duplicate filtering. The `data_source` column drops from canonical
+  schema (15 → 14 cols).
+- **Site count drops 47 → 42** — 4 TSP-only CPS fence-line sites and
+  Von Ormy (not in pull) removed from the registry.
+- **VOCs get their own tables** (`vocs_1hr`, `vocs_24hr`) with chemical-name
+  partitioning. Routing by Sample Duration Code 7/X cleanly handles
+  24hr-only feeds (site 0060 today).
+- **Reload time drops dramatically** — 5+ hr → 9 min for local build;
+  5.5 hr → 54 min for Neon reload.
+- **`aq.aq_weather_daily` dropped** — pollutant ⨝ weather joins now in
+  user code instead of a derived table.
+
+### Sub-decisions
+
+19 sub-decisions were locked in conversation with Aidan on 2026-05-27.
+The full matrix is in the
+[v0.4.0 migration guide §3 Architectural Decisions](./v0_4_0_migration.md#3-the-19-architectural-decisions-one-line-each).
+Highlights:
+
+- Drop `data_source` column entirely (#3)
+- Site 0060 PM10 routes to `pollutant_daily_24hr` (#5/#6)
+- VOCs excluded from `pollutant_hourly`; separate `vocs_1hr` + `vocs_24hr` (#9/#10)
+- NAAQS recomputed per 40 CFR Part 50 in-pipeline (#11), including site 0060 24hr (#12)
+- Combined `aq_weather_daily` table dropped (#13)
+- `site_registry` gains `pollutant_groups_hourly[]` / `pollutant_groups_daily_24hr[]` / `voc_cadence` columns (#15)
+- `parameter_reference` table sourced from EPA AQS code tables (#17)
+
+### Trade-offs accepted
+
+- **Loss of EPA cross-checking** — we no longer validate TCEQ values
+  against EPA's independent QA. Mitigation: spot-checks against the
+  v0.3.7 archive (`aq_v0_3_7_epa.*`) confirm top-3 NAAQS sites match
+  exactly; other sites differ ≤0.57 ppb due to additional 2025 data
+  in the 2026-05-21 pull.
+- **Manual TCEQ TAMIS downloads required** — there's no API equivalent
+  yet for the full TCEQ pull, so refreshing requires bulk manual
+  downloads (typically annual). Step 01b handles file-level
+  concatenation (A/B splits) automatically.
+
+### Verification
+
+- **Row-count parity:** all 10 Neon tables match local v0.4.0 parquet/CSV
+  artifacts exactly.
+- **Raw → Neon spot-check:** 14 random rows across 5 representative cases
+  all match.
+- **NAAQS:** top-3 ozone 8hr 4th-max sites match v0.3.7 archive exactly;
+  remaining sites differ ≤0.57 ppb.
+
+Full details: [release report](./v0_4_0_release_report.md).
+
 ---
 
 ## ADR-001: Parquet as the primary storage format

@@ -91,22 +91,28 @@ eight sequential steps orchestrated by `pipeline/run_pipeline.py`:
 
 7. **Analysis-ready exports** (`step_06_export_analysis_ready.py`) —
    Flat CSV exports (`daily_pollutant_means.csv`, `naaqs_design_values.csv`,
-   `combined_aq_weather_daily.csv`, `site_registry.csv`) and optional R
+   `site_registry.csv`, `parameter_reference.csv`) and optional R
    `.rds` bundles were emitted to support downstream analysis in R,
-   RStudio, and Google Colab.
+   RStudio, and Google Colab. Pollutant + weather joins are performed
+   in user code against `aq.weather_hourly` (the v0.3.7 combined
+   `aq_weather_daily` table was dropped in v0.4.0 — decision #13).
 
-8. **Database load** (`step_07_load_postgres.py`) — Analysis-ready tables
-   were loaded into a hosted PostgreSQL 16 instance (Neon, `aq` schema)
-   for SQL-based querying by collaborators and BI tools. Connection
-   credentials were supplied exclusively via an environment variable; no
-   secrets were persisted to disk.
+8. **Database load** (`step_07_load_postgres.py`) — All 10 analysis-ready
+   tables were loaded into a hosted PostgreSQL 16 instance (Neon, `aq`
+   schema) via PostgreSQL COPY (100K-row chunks, per-chunk transactions,
+   ~54 min total). Connection credentials were supplied exclusively via
+   the `AQ_POSTGRES_URL` environment variable; no secrets were
+   persisted to disk.
 
 ## Site Inventory
 
-The pipeline produced a site registry containing 47 total monitoring sites,
-stratified by data status: 41 with active measurement data, 3 Bexar County
-CPS Energy fence-line monitors registered but without data, 2 Corpus
-Christi volatile organic compound sites pending data retrieval from TCEQ
+The pipeline produced a site registry containing **42 monitoring sites**
+(v0.4.0): 41 with active measurement data and 1 disabled site (Williams
+Park 483551024) retained for historical completeness. The v0.3.7 site
+count was 47; the difference reflects v0.4.0 architectural decisions to
+drop 4 TSP-only CPS fence-line monitors (480290623/625/626/1609) and 1
+site (Von Ormy 480291097) not present in the 2026-05-21 TCEQ TAMIS pull.
+Sites are stratified by
 TAMIS, and 1 dual–AQS-ID physical site (Calaveras Lake, shared between EPA
 ID 480290059 and TCEQ ID 480291609). The 41 active sites spanned 13
 counties, with the greatest density in Bexar County (19 sites) and one

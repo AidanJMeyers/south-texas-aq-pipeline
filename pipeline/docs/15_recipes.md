@@ -191,14 +191,26 @@ Valley counties up.
 **Question:** How strongly does daily temperature correlate with daily
 ozone, PM₂.₅, and NO₂ at Camp Bullis?
 
-**Data:** `data/csv/combined_aq_weather_daily.csv`
+**Data (v0.4.0):** `data/parquet/daily/pollutant_daily.parquet` joined to
+`data/parquet/weather/`. The combined `aq_weather_daily.csv` was dropped
+in v0.4.0 — daily weather aggregation happens here.
 
 === "Python"
 
     ```python
     import pandas as pd
 
-    combined = pd.read_csv("data/csv/combined_aq_weather_daily.csv")
+    # Daily pollutant aggregates
+    poll = pd.read_parquet("data/parquet/daily/pollutant_daily.parquet")
+
+    # Aggregate weather to daily Bexar means (Camp Bullis is in Bexar)
+    wx = pd.read_parquet("data/parquet/weather/",
+                         filters=[("county_name", "=", "Bexar")])
+    wx_daily = (
+        wx.groupby("date_local")[["temp_c", "humidity", "wind_speed"]]
+          .mean().reset_index()
+    )
+    combined = poll.merge(wx_daily, on="date_local")
     site = combined.query("aqsid == '480290052' and valid_day").copy()
 
     results = {}

@@ -125,39 +125,57 @@ flowchart TD
 
 ## :material-download: Download the pipeline inputs
 
-!!! warning "You need ~2 GB of raw data before you can run the pipeline"
+!!! warning "You need ~1 GB of raw data before you can run the pipeline"
 
     The git repository ships with the **pipeline code** only. To actually
-    run it, you need the raw EPA AQS, TCEQ TAMIS, and OpenWeather files
-    that live under `!Final Raw Data/` and `01_Data/` in the project tree.
-    These are too large to commit to git.
+    run it, you need the raw **TCEQ TAMIS** TXT files and the **OpenWeather +
+    Solcast** master CSV that live under `!Final Raw Data/` and `01_Data/`
+    in the project tree. These are too large to commit to git.
 
 ### OneDrive bundle (for Melaram Lab members)
 
 <a href="https://melaramlab-my.sharepoint.com/:u:/p/coreteam/IQDdWC35UwcvQ52psdTLNknpAbxOhQ9RDX7GUhFESx4iYec?e=xWfs2E" class="download-cta">
-  :material-microsoft-onedrive: Download pipeline inputs from OneDrive (177 MB)
+  :material-microsoft-onedrive: Download pipeline inputs from OneDrive
 </a>
 
 The OneDrive share contains a single zip file `south-texas-aq-inputs.zip`
-(**177 MB compressed** → ~1.8 GB uncompressed) with this exact layout:
+with the v0.4.0 input layout below. **EPA AQS Downloads is no longer
+required** — the v0.4.0 pipeline reads exclusively from the 2026-05-21
+TCEQ TAMIS pull.
 
 ```
 south-texas-aq-inputs/
 ├── !Final Raw Data/
-│   ├── EPA AQS Downloads/
-│   │   ├── AQS_SouthTexas_2015_2025_COMPLETE.csv
-│   │   ├── by_pollutant/
-│   │   └── individual_downloads/
-│   ├── TCEQ Data - Missing Sites/
-│   └── Extra TCEQ Sites.xlsx
+│   ├── TCEQ Downloads 5-21-26/
+│   │   └── Confirmed - AQS Ascending/
+│   │       ├── !TCEQ Parameter Codes.pdf      (TCEQ SWQM ref — not used)
+│   │       ├── 480131090.txt                   (per-site files, 41 total)
+│   │       ├── 480290032.txt … 484931038.txt
+│   │       ├── 480290060_OnlyEPAReportingStandard.txt  (Palo Alto 24hr-only)
+│   │       ├── 480290622_A.txt + _B.txt        (Heritage MS split)
+│   │       ├── 480610006_A.txt + _B.txt        (Brownsville split)
+│   │       └── Bexar_VOCs1hrAutoGC.txt … Wilson_VOCS1hrAutoGC.txt
+│   │                                            (10 county-level VOC bundles)
+│   └── Extra TCEQ Sites.xlsx                   (site coordinates lookup)
 └── 01_Data/
+    ├── OpenwWeatherData/                        (raw weather + Solcast)
+    │   ├── Historical Weather Data/             (15 station CSVs)
+    │   └── Irradiance Data/                     (13 station CSVs)
     ├── Processed/
-    │   ├── By_Pollutant/
-    │   ├── By_County/
     │   └── Meteorological/
+    │       └── Weather_Irradiance_Master_2015_2025.csv  (~440 MB)
     └── Reference/
-        └── enhanced_monitoring_sites.csv
+        ├── enhanced_monitoring_sites.csv        (29-site coord lookup)
+        └── parameter_reference.csv              (57 AQS codes, NEW v0.4.0)
 ```
+
+!!! info "OneDrive bundle status"
+
+    The OneDrive zip is being refreshed for v0.4.0 (replacing the v0.3.7
+    EPA+TCEQ bundle with the new TCEQ-only contents above). If you
+    download the bundle and don't see the
+    `TCEQ Downloads 5-21-26/Confirmed - AQS Ascending/` directory, request
+    the updated bundle from [aidan.meyers@tamucc.edu](mailto:aidan.meyers@tamucc.edu).
 
 **To install:**
 
@@ -170,9 +188,13 @@ cd south-texas-aq-pipeline
 #    (both "!Final Raw Data/" and "01_Data/" should land next to pipeline/)
 Expand-Archive south-texas-aq-inputs.zip -DestinationPath .
 
-# 3. Install dependencies and run
+# 3. Install dependencies and run the full v0.4.0 build (~9 min)
 pip install -r requirements.txt
 python pipeline/run_pipeline.py
+
+# 4. Reload Neon aq schema via COPY (~54 min, optional — only if you
+#    have AQ_POSTGRES_URL set in your environment)
+python pipeline/run_pipeline.py --only 07
 ```
 
 !!! note "OneDrive access is currently restricted to Melaram Lab members."

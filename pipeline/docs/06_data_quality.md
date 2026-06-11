@@ -6,37 +6,56 @@ development, with explanation, resolution, and impact on analysis.
 This document is updated whenever new issues surface. If you find something
 not listed here, add it with a reproduction and fix.
 
+> **v0.4.0 status (2026-05-28):** Most v0.3.x data quality issues were
+> *caused by* the EPA+TCEQ blending (split site names, ozone unit
+> mismatches between sources, duplicate-row inflation from the merge
+> step). The TCEQ-only architecture introduced in v0.4.0
+> **structurally eliminates** these issues — there is no longer a second
+> source to harmonize against. The status flags on issues 1, 2, 4, 8,
+> and 9 below have been updated from "Fixed in v0.x.x" to "Structurally
+> eliminated in v0.4.0".
+>
+> Spot-checking (Phase 6.1) confirmed all 14 sampled raw → Neon round
+> trips match exactly, including a negative SO₂ value (preserved
+> faithfully), a multi-POC measurement (POC=03), and the A/B-split
+> Heritage MS site. See the
+> [release report](./v0_4_0_release_report.md#6-verification-results).
+
 ## Issue catalog
 
 ### 1. Ozone unit mismatch between EPA and TCEQ ⚠️ CRITICAL
 
 **Severity:** Critical (affected NAAQS numerical values by ~1000×)
-**Status:** ✅ Fixed in v0.2.1 (step 01)
+**Status:** ✅ Fixed in v0.2.1, **structurally eliminated in v0.4.0**
 
 EPA reports ozone in parts per million (ppm); TCEQ reports it in parts per
-billion (ppb). The upstream `By_Pollutant/Ozone_AllCounties_2015_2025.csv`
-merged both networks without converting, producing a column where the
-numeric value meant different things depending on the `data_source` column.
+billion (ppb). The v0.3.7 upstream merge wrote `By_Pollutant/Ozone_…csv`
+with both networks combined, producing a column where the numeric value
+meant different things depending on the `data_source` column.
 
 **Detection:** The first NAAQS run produced values like 76.9 "ppm" at
 Bexar sites — an impossible number against the 0.070 ppm standard.
 
-**Fix:** `pipeline/step_01_build_pollutant_store.py::_normalize_units` now
-multiplies TCEQ ozone rows by 0.001 before writing to parquet. 638,174
-rows affected. See [methodology §Unit normalization](./05_methodology.md#1-unit-normalization).
+**Fix (v0.2.1):** `pipeline/step_01_build_pollutant_store.py::_normalize_units`
+multiplied TCEQ ozone rows by 0.001 before writing to parquet.
 
-**Verification:** Post-fix, Bexar 8-hr ozone 4th-max values are 0.063–0.077
-ppm — consistent with the San Antonio MSA's documented nonattainment.
+**v0.4.0 update:** EPA is no longer a data source. Every ozone row is TCEQ
+ppb, converted uniformly to ppm in `step_01b_ingest_tceq_raw.py`
+(1,144,266 rows in the 2026-05-21 baseline). There is no longer a
+multi-source mismatch to harmonize against — the issue is structural rather
+than configuration-dependent now.
+
+**Verification:** Post-fix, Bexar 8-hr ozone 4th-max values are 0.075–0.084
+ppm — top-3 sites exactly match the v0.3.7 archive (see [release report §6.3](./v0_4_0_release_report.md#6-verification-results)).
 
 ### 2. Exact-row duplicates from upstream merge
 
 **Severity:** Medium (inflates row counts, wastes storage, risks biasing
 means if not deduplicated)
-**Status:** ✅ Fixed in v0.2.1 (step 01)
+**Status:** ✅ Fixed in v0.2.1, **structurally eliminated in v0.4.0**
 
-The upstream reorg scripts wrote 973,294 exact full-row duplicates when
-stitching EPA + TCEQ into the merged pollutant CSVs. All identical on every
-column including `sample_measurement`.
+The v0.3.7 upstream reorg scripts wrote 973,294 exact full-row duplicates
+when stitching EPA + TCEQ into the merged pollutant CSVs:
 
 | Pollutant | Duplicate rows |
 |---|---:|
@@ -45,9 +64,18 @@ column including `sample_measurement`.
 | PM2.5 | 110,481 |
 | SO2, CO, PM10, VOCs | 0 |
 
-**Fix:** `step_01::_enrich` calls `df.drop_duplicates()` before writing
-parquet. Validation step 00 reports the dup count as a warning so future
-regressions are visible.
+These were caused by the two-source merge producing overlapping records
+where EPA and TCEQ reported the same physical observation.
+
+**Fix (v0.2.1):** `step_01::_enrich` called `df.drop_duplicates()` before
+writing parquet.
+
+**v0.4.0 update:** With TCEQ as the sole source, there is no merge step
+that could introduce cross-source duplicates. Step 01b still dedups within
+each TXT file on `(aqsid, date_local, time_local, parameter_code, poc)`
+as a defensive measure, but the v0.4.0 baseline build observed
+**zero dedup drops** across all 9.77M raw rows — confirming structural
+elimination.
 
 ### 3. SO₂ intra-key value conflicts
 

@@ -1,101 +1,126 @@
 # 05 — Methodology
 
+> **v0.4.0 (2026-05-28):** §1 (Unit normalization) updated for the
+> TCEQ-only architecture. The v0.3.7 EPA/TCEQ harmonization logic is no
+> longer needed — every row is TCEQ-sourced, so only ozone needs ppb→ppm
+> conversion. See the
+> [v0.4.0 migration guide](./v0_4_0_migration.md) for the architectural
+> rationale.
+
 Technical and regulatory foundations for every transformation the pipeline
 applies. This document is written to be citable from the Methods section
 of a manuscript.
 
-## 1. Unit normalization
+## 1. Unit normalization (v0.4.0)
 
-### Problem
+### Why this is necessary
 
-The upstream reorganization scripts merged EPA AQS and TCEQ CAMS data into
-single per-pollutant CSVs (`01_Data/Processed/By_Pollutant/*.csv`) without
-reconciling native units. For ozone specifically:
+The pipeline's downstream NAAQS computations (§3) and many published
+exposure-response analyses assume **EPA canonical units**:
 
-| Source | Native unit | Example raw value |
-|---|---|---|
-| EPA AQS | ppm | 0.0459 |
-| TCEQ CAMS | ppb | 45.9 |
+- Ozone in parts per million (ppm)
+- SO₂, NO/NO₂/NOx in parts per billion (ppb)
+- PM₂.₅, PM₁₀ in micrograms per cubic meter (µg/m³)
+- VOCs in parts per billion Carbon (ppbC)
 
-Downstream NAAQS calculations against the 0.070 ppm standard produced
-nonsense values (~75 "ppm" at San Antonio sites) because TCEQ rows were
-treated as ppm when they were actually ppb.
+TCEQ TAMIS reports **ozone in ppb** while every other parameter is already
+in the EPA canonical unit. Without conversion, NAAQS calculations against
+the 0.070 ppm ozone standard produce nonsense values (~75 "ppm" at San
+Antonio sites) because the underlying numbers are actually ppb.
 
 ### Verification
 
-Units were confirmed directly from the raw files under `!Final Raw Data/`:
+Unit conventions are confirmed directly from the AQS RD Transaction format
+header in each raw TXT file under
+`!Final Raw Data/TCEQ Downloads 5-21-26/Confirmed - AQS Ascending/`:
 
-**EPA (CSV with `units_of_measure` column):**
-```python
-import pandas as pd
-epa = pd.read_csv('!Final Raw Data/EPA AQS Downloads/by_pollutant/Ozone_2015_2025_AllCounties.csv')
-epa['units_of_measure'].unique()  # → ['Parts per million']
+```
+# Example line from 480290052.txt (Camp Bullis ozone):
+# RD|I|48|029|0052|44201|01|1|008|...
+#                              ^^^
+#                              Unit Cd = 008 = Parts per billion (ppb)
 ```
 
-**TCEQ (AQS RD Transaction format with `Unit Cd` field):**
-```python
-# From TCEQ_O3_2016-2025_MissingGuadelupe.txt
-# RD|I|48|091|0503|44201|01|1|008|...
-#                             ^^^
-#                             Unit Cd = 008 = Parts per billion (ppb)
-```
+The AQS standard unit code table (EPA AQS Data Mart documentation) defines:
 
-The AQS standard unit code table (EPA AQS Data Mart documentation) maps:
-- 001 = ppm
-- 007 = ppmC
-- 008 = ppb ← TCEQ ozone uses this
-- 009 = ppbC
-- 105 = µg/m³ LC
+| Unit Cd | Meaning |
+|---|---|
+| `001` | ppm |
+| `007` | ppm (Ozone EPA standard) |
+| `008` | **ppb** ← TCEQ ozone uses this |
+| `009` | ppbC |
+| `017` | ppbC ← TCEQ VOCs use this |
+| `040` | ppb |
+| `101` | µg/m³ (25 °C reference) |
+| `105` | **µg/m³ (LC)** ← TCEQ PM uses this |
 
 ### Conversion table
 
-Verified for every `(parameter_code, data_source)` combination in the
-project data:
+| Parameter | TCEQ native unit | Target | Conversion factor |
+|---|---|---|---|
+| 44201 (O₃) | ppb | **ppm** | × 0.001 |
+| 42101 (CO) | ppm | ppm | (none) |
+| 42401 (SO₂) | ppb | ppb | (none) |
+| 42601 (NO) | ppb | ppb | (none) |
+| 42602 (NO₂) | ppb | ppb | (none) |
+| 42603 (NOx) | ppb | ppb | (none) |
+| 88101 (PM₂.₅ FRM/FEM) | µg/m³ | µg/m³ | (none) |
+| 88502 (PM₂.₅ any method) | µg/m³ | µg/m³ | (none) |
+| 81102 (PM₁₀ STP) | µg/m³ | µg/m³ | (none) |
+| 43xxx (VOC paraffins / cycloalkanes / olefins) | ppbC | ppbC | (none) |
+| 45xxx (VOC aromatics) | ppbC | ppbC | (none) |
 
-| Parameter | EPA unit | TCEQ unit | Target | Conversion |
-|---|---|---|---|---|
-| 44201 (O₃) | ppm | ppb | **ppm** | TCEQ × 0.001 |
-| 42101 (CO) | ppm | — | ppm | (TCEQ absent) |
-| 42401 (SO₂) | ppb | ppb | ppb | (none) |
-| 42601 (NO) | ppb | ppb | ppb | (none) |
-| 42602 (NO₂) | ppb | ppb | ppb | (none) |
-| 42603 (NOx) | ppb | ppb | ppb | (none) |
-| 88101 (PM₂.₅ FRM) | µg/m³ | — | µg/m³ | — |
-| 88502 (PM₂.₅ non-FRM) | — | µg/m³ | µg/m³ | — |
-| 81102 (PM₁₀) | µg/m³ | — | µg/m³ | — |
-
-**Only ozone required conversion.** All other parameters already use matching
-units across the two networks.
+**Ozone is the only parameter requiring conversion.** All other parameters
+are already in canonical units when they arrive from TCEQ TAMIS.
 
 ### Implementation
 
-`pipeline/step_01_build_pollutant_store.py` applies conversions via the
-`UNIT_CONVERSIONS` dictionary before writing parquet:
+`pipeline/step_01b_ingest_tceq_raw.py` applies the ozone conversion at
+ingestion (line-level scan of each TXT file), so downstream stages
+(step_01, step_03, step_04, step_07) see only canonical-unit values:
 
 ```python
-UNIT_CONVERSIONS: dict[tuple[int, str], tuple[float, str]] = {
-    (44201, "TCEQ"): (0.001, "ozone ppb → ppm"),
-}
+OZONE_PPB_TO_PPM = 0.001
 
-def _normalize_units(df, log):
-    for (param, src), (factor, desc) in UNIT_CONVERSIONS.items():
-        mask = (df.parameter_code == param) & (df.data_source == src)
-        if mask.sum():
-            df.loc[mask, 'sample_measurement'] *= factor
-            log.info(f"unit normalize: {desc}  ({mask.sum():,} rows × {factor})")
+def normalize_ozone_units(df, log):
+    mask = df["parameter_code"] == 44201
+    n = int(mask.sum())
+    if n:
+        df.loc[mask, "sample_measurement"] = df.loc[mask, "sample_measurement"] * 0.001
+        log.info(f"  unit normalize: ozone ppb -> ppm ({n:,} rows × 0.001)")
     return df
 ```
 
-**Applied in practice:** 638,174 TCEQ ozone rows were converted in the
-current pipeline run. Post-conversion, the Bexar 8-hr ozone 4th-max values
-land at 0.063–0.077 ppm, consistent with the San Antonio MSA's ongoing
-nonattainment status.
+**Applied in practice (v0.4.0 baseline run):** 1,144,266 ozone rows
+converted across the 18 sites that report O₃. Post-conversion, the Bexar
+8-hr ozone 4th-max design values (2024) land at 0.075–0.084 ppm:
+
+| Site | 2024 ozone 8hr 4th-max |
+|---|---:|
+| Elm Creek Elementary (480290501) | 0.08381 ppm — exceeds NAAQS 0.070 |
+| Heritage Middle School (480290622) | 0.08232 ppm — exceeds |
+| City of Garden Ridge (480910505) | 0.07451 ppm — exceeds |
+| Camp Bullis (480290052) | 0.07435 ppm — exceeds |
+| Fair Oaks Ranch (480290502) | 0.07432 ppm — exceeds |
+| Calaveras Lake (480290059) | 0.07099 ppm — exceeds |
+
+These match the v0.3.7 archive exactly for the top-3 sites; the other 3
+differ by 0.18–0.57 ppb due to additional 2025 data in the 2026-05-21 pull
+(see [release report §6.3](./v0_4_0_release_report.md#6-verification-results)).
+
+### Difference from v0.3.7
+
+In v0.3.7, the conversion logic was a per-`(parameter_code, data_source)`
+dictionary in `step_01_build_pollutant_store.py`. With TCEQ-only data the
+`data_source` filter is unnecessary — every ozone row needs converting.
+The logic moved upstream into `step_01b` so the downstream CSV / parquet
+artifacts are already canonical-unit.
 
 ### Reproducibility
 
-Running `python pipeline/run_pipeline.py --only 01` after updating
-`UNIT_CONVERSIONS` will rebuild the parquet store with the new conversion
-in place. The step is idempotent; there is no state to roll back.
+Running `python pipeline/run_pipeline.py --only 01b` re-ingests every
+TXT file with the conversion applied. The step is idempotent; rerunning
+overwrites the canonical CSVs in `01_Data/Processed/By_Pollutant/` cleanly.
 
 ## 2. Duplicate handling
 

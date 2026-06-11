@@ -248,58 +248,71 @@ for 8-hr rolling averages, ≥18 of 24 hours for daily means/maxes. See
 **Both invalid and valid days are preserved** in the output so downstream
 consumers can audit completeness themselves.
 
-### Step 05 — Merge AQ + Weather
-**Script:** `pipeline/step_05_merge_aq_weather.py`
-**Helper:** `pipeline/utils/site_lookup.py`
-**Reads:** `data/parquet/daily/pollutant_daily.parquet`, `data/parquet/weather/`, `enhanced_monitoring_sites.csv`, `Extra TCEQ Sites.xlsx`
-**Writes:** `data/parquet/combined/aq_weather_daily.parquet`, `data/csv/combined_aq_weather_daily.csv`, `data/csv/site_registry.csv`
-**Runtime:** ~90 seconds
+### Step 05 — Merge AQ + Weather (RETIRED in v0.4.0)
 
-1. **Build coordinate union** from two sources:
-   - `enhanced_monitoring_sites.csv` (29 AQS-verified sites)
-   - `Extra TCEQ Sites.xlsx` "Missing Sites" sheet (18 TCEQ CAMS sites)
-   - Deduplicate on `aqsid` (CSV wins for overlapping rows)
-2. **Derive weather station coordinates** from the first lat/lon row per
-   station in the weather parquet (15 stations)
-3. **Compute nearest station per pollutant site** via Haversine distance
-4. **Fallback to county-name matching** for any site without coordinates
-   (currently unused — all 41 active sites have coordinates after step 1)
-5. **Collapse weather to daily** per station using the aggregation spec in
-   `DAILY_WEATHER_AGGS`
-6. **Join** daily pollutant → paired station → daily weather
-7. **Build site registry** via `pipeline.utils.site_lookup.build_site_registry`
-   (47 rows with `data_status` tags)
+This step is no longer in the pipeline. Decision #13 dropped the combined
+`aq_weather_daily` table — pollutant ⨝ weather joins are handled by user
+code in SQL/pandas/data.table directly against `aq.pollutant_hourly` or
+`aq.pollutant_daily` and `aq.weather_hourly` (or their parquet
+equivalents). Site coordinates are now merged into the site registry by
+step 05b instead.
+
+The v0.3.7 implementation lives in `pipeline/step_05_merge_aq_weather.py`
+and remains in the repo for historical reference, but it's commented out
+of `run_pipeline.py:STEPS` and is never executed.
+
+### Step 05b — Build Metadata (NEW in v0.4.0)
+**Script:** `pipeline/step_05b_build_metadata.py`
+**Helper:** `pipeline/utils/site_lookup.py`
+**Reads:** `data/parquet/{pollutants,vocs_1hr,vocs_24hr,pollutant_daily_24hr}/`, `enhanced_monitoring_sites.csv`, `Extra TCEQ Sites.xlsx`, `!Archive_v0_3_7/inventory/parameter_reference.csv`
+**Writes:** `data/csv/site_registry.csv`, `data/csv/parameter_reference.csv`, `01_Data/Reference/parameter_reference.csv`
+**Runtime:** ~30 seconds
+
+1. **Build site registry** from the four parquet stores via
+   `pipeline.utils.site_lookup.build_site_registry`:
+   - Scan each store for unique AQSIDs and which pollutant_groups appear
+   - Compute `pollutant_groups_hourly[]` (criteria pollutant groups in `pollutant_hourly`)
+   - Compute `pollutant_groups_daily_24hr[]` (groups in `pollutant_daily_24hr`)
+   - Compute `voc_cadence` (`'1hr'` / `'24hr'` / `'both'` / empty) from VOC stores
+   - Add disabled sites (Williams Park 483551024) for completeness
+2. **Merge lat/lon coordinates** from `enhanced_monitoring_sites.csv` +
+   `Extra TCEQ Sites.xlsx`
+3. **Copy the parameter reference seed** from the Phase 1 inventory
+   artifact (57 AQS codes with HAP flags + chemical families) into both
+   `data/csv/` and `01_Data/Reference/`
 
 ### Step 06 — Export Analysis-Ready Files
 **Script:** `pipeline/step_06_export_analysis_ready.py`
-**Helper:** `pipeline/utils/export_rds.R`
 **Reads:** `data/csv/*.csv`
 **Writes:** Optionally `data/rds/*.rds`
 **Runtime:** ~5 seconds
 
-1. Verify all expected CSV files exist
+1. Verify all expected CSV files exist (`daily_pollutant_means.csv`,
+   `naaqs_design_values.csv`, `site_registry.csv`, `parameter_reference.csv`)
 2. If `Rscript` is on `PATH`, shell out to `export_rds.R` to save
-   `master_pollutant.rds`, `master_weather.rds`, `combined_daily.rds`
+   R-native bundles
 3. If `Rscript` is missing, log a warning and skip — this is non-fatal
 
-### Step 07 — Load Postgres
+### Step 07 — Load Postgres via COPY (REWRITTEN in v0.4.0)
 **Script:** `pipeline/step_07_load_postgres.py`
 **Helper:** `pipeline/utils/db.py`
-**Reads:** `data/csv/site_registry.csv`, `data/parquet/naaqs/`, `data/parquet/daily/`, `data/parquet/combined/`
-**Writes:** 5 tables in the `aq` schema of whatever Postgres instance
+**Reads:** `data/csv/{site_registry,parameter_reference}.csv`, `data/parquet/{naaqs,daily,pollutants,vocs_1hr,vocs_24hr,pollutant_daily_24hr,weather}/`
+**Writes:** 10 tables in the `aq` schema of whatever Postgres instance
 `AQ_POSTGRES_URL` points at
-**Runtime:** ~5–9 minutes (dominated by network round-trips to Neon)
+**Runtime:** ~54 minutes via COPY (was ~5.5 hr with v0.3.7 `to_sql`)
 
 For each table spec in `config.yaml:postgres.tables`:
-1. Read the parquet/CSV source
-2. Clamp chunk size to stay under the Postgres 65535-parameter limit with
-   `method="multi"` (chunksize ≤ 65000 / n_cols)
-3. `df.to_sql(if_exists='replace', ...)` — full table replace for idempotency
-4. Create per-column B-tree indexes listed in the config
+1. Read the source (CSV, single parquet, or partitioned `parquet_dir`)
+2. DROP TABLE IF EXISTS … CASCADE
+3. CREATE TABLE via `df.head(0).to_sql` (schema inferred from pandas)
+4. Bulk-load via `COPY … FROM STDIN WITH (FORMAT CSV)` in 100K-row chunks,
+   one transaction per chunk, with 3-retry backoff on transient errors
+5. CREATE INDEX for each configured index column
+6. GRANT SELECT on the new table to `anonymous` + `authenticated`
 
-On a free-tier quota error (e.g. Neon 0.5 GB limit), tables with
-`skip_on_quota_error: true` are skipped with a warning and the remaining
-tables continue. Currently only `aq_weather_daily` has that flag.
+After all tables load, ALTER DEFAULT PRIVILEGES sets future-table grants
+so the read-only Data API roles continue to work even if new tables are
+added.
 
 **Credentials are read ONLY from `AQ_POSTGRES_URL`** — never from config or
 the filesystem. If the variable is unset, step 07 is skipped cleanly.
