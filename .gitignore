@@ -10,6 +10,11 @@
 data/
 data/**
 
+# -- Exception: notebook-side small metadata CSVs (raw-file inventories,
+#    reference lookups) live under notebooks/data and ARE tracked
+!notebooks/data/
+!notebooks/data/**
+
 # -- Raw data (immutable, large, not project IP) ----------------------------
 !Final Raw Data/
 !Final Raw Data/**
